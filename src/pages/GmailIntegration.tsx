@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -14,44 +14,196 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
 import { Mail, Search, PlusCircle, Trash2, Archive, Star, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/contexts/AuthContext';
+
+// Google OAuth Configuration
+const GOOGLE_CLIENT_ID = '307019110275-jnlvunpcfe1fnjjb9133ggmu93eoj3vb.apps.googleusercontent.com';
+const GOOGLE_REDIRECT_URI = window.location.origin + '/gmail';
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
 
 const GmailIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
-  const [emails, setEmails] = useState<Array<{id: string, from: string, subject: string, date: string, read: boolean}>>([
-    { id: '1', from: 'john@example.com', subject: 'New shipping request', date: '2023-07-22 09:35', read: true },
-    { id: '2', from: 'logistics@fastfreight.com', subject: 'Delivery confirmation', date: '2023-07-21 14:22', read: false },
-    { id: '3', from: 'support@customs.gov', subject: 'Documentation needed', date: '2023-07-20 11:03', read: false },
-    { id: '4', from: 'maria@clientcompany.com', subject: 'Order status request', date: '2023-07-19 16:40', read: true },
-  ]);
+  const [emails, setEmails] = useState<Array<{id: string, from: string, subject: string, date: string, read: boolean}>>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isLoadingEmails, setIsLoadingEmails] = useState(false);
   const { toast } = useToast();
-
+  const { user } = useAuth();
+  
+  // Check if Gmail is connected on component mount
+  useEffect(() => {
+    checkGmailConnection();
+    
+    // Check for OAuth callback
+    const urlParams = new URLSearchParams(window.location.search);
+    const code = urlParams.get('code');
+    
+    if (code) {
+      handleGoogleCallback(code);
+      // Remove code from URL for cleanliness
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+  
+  const checkGmailConnection = () => {
+    // Check if we have a token in localStorage
+    const gmailToken = localStorage.getItem('gmail_access_token');
+    const tokenExpiry = localStorage.getItem('gmail_token_expiry');
+    
+    if (gmailToken && tokenExpiry) {
+      // Check if token is still valid
+      if (new Date().getTime() < parseInt(tokenExpiry)) {
+        setIsConnected(true);
+        fetchEmails(gmailToken);
+      } else {
+        // Token expired, remove it
+        localStorage.removeItem('gmail_access_token');
+        localStorage.removeItem('gmail_token_expiry');
+        setIsConnected(false);
+      }
+    }
+  };
+  
   const connectToGmail = () => {
-    // In real implementation, this would redirect to Google OAuth consent screen
     toast({
       title: "Connecting to Gmail",
       description: "Redirecting to Google authentication..."
     });
     
-    // Simulate successful connection after 2 seconds
-    setTimeout(() => {
+    // Construct the OAuth URL
+    const authUrl = `https://accounts.google.com/o/oauth2/auth?` +
+      `client_id=${GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(GMAIL_SCOPES)}` +
+      `&access_type=offline` +
+      `&prompt=consent` +
+      `&login_hint=${encodeURIComponent('logisticstoukraine@gmail.com')}`;
+    
+    // Redirect to Google OAuth
+    window.location.href = authUrl;
+  };
+  
+  const handleGoogleCallback = async (code: string) => {
+    try {
+      // Exchange authorization code for tokens
+      // Note: In a production app, this should be done server-side to protect your client secret
+      // For this example, we're doing it client-side but this is not recommended for real applications
+      const tokenUrl = 'https://oauth2.googleapis.com/token';
+      const params = new URLSearchParams();
+      params.append('code', code);
+      params.append('client_id', GOOGLE_CLIENT_ID);
+      params.append('client_secret', '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'); // Normally this should be kept server-side
+      params.append('redirect_uri', GOOGLE_REDIRECT_URI);
+      params.append('grant_type', 'authorization_code');
+      
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to exchange code for tokens');
+      }
+      
+      const data = await response.json();
+      
+      // Save tokens to localStorage (in a real app, consider using a more secure storage method)
+      localStorage.setItem('gmail_access_token', data.access_token);
+      localStorage.setItem('gmail_refresh_token', data.refresh_token);
+      
+      // Calculate expiry time
+      const expiryTime = new Date().getTime() + (data.expires_in * 1000);
+      localStorage.setItem('gmail_token_expiry', expiryTime.toString());
+      
       setIsConnected(true);
       toast({
         title: "Successfully connected",
         description: "Your Gmail account has been connected to AI Smart Logistics."
       });
-    }, 2000);
+      
+      // Fetch emails using the new token
+      fetchEmails(data.access_token);
+      
+    } catch (error) {
+      console.error('OAuth callback error:', error);
+      toast({
+        title: "Connection failed",
+        description: "Could not connect to Gmail. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
-  const filteredEmails = emails.filter(email => 
-    email.from.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    email.subject.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
-  const markAsRead = (id: string) => {
-    setEmails(emails.map(email => 
-      email.id === id ? { ...email, read: true } : email
-    ));
+  const fetchEmails = async (token: string) => {
+    setIsLoadingEmails(true);
+    try {
+      // Get list of messages
+      const messagesResponse = await fetch(
+        'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=10', 
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+      
+      if (!messagesResponse.ok) {
+        throw new Error('Failed to fetch email list');
+      }
+      
+      const messagesData = await messagesResponse.json();
+      
+      // Fetch details for each message
+      const emailPromises = messagesData.messages.map(async (message: {id: string}) => {
+        const messageResponse = await fetch(
+          `https://www.googleapis.com/gmail/v1/users/me/messages/${message.id}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          }
+        );
+        
+        if (!messageResponse.ok) {
+          throw new Error(`Failed to fetch email ${message.id}`);
+        }
+        
+        return messageResponse.json();
+      });
+      
+      const emailsData = await Promise.all(emailPromises);
+      
+      // Process the emails
+      const processedEmails = emailsData.map(email => {
+        const headers = email.payload.headers;
+        const subject = headers.find((h: any) => h.name === 'Subject')?.value || '(No subject)';
+        const from = headers.find((h: any) => h.name === 'From')?.value || '';
+        const date = headers.find((h: any) => h.name === 'Date')?.value || '';
+        const isUnread = email.labelIds && email.labelIds.includes('UNREAD');
+        
+        return {
+          id: email.id,
+          subject,
+          from,
+          date: new Date(date).toLocaleString(),
+          read: !isUnread
+        };
+      });
+      
+      setEmails(processedEmails);
+    } catch (error) {
+      console.error('Error fetching emails:', error);
+      toast({
+        title: "Error fetching emails",
+        description: "Could not retrieve emails from Gmail. Please try reconnecting.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingEmails(false);
+    }
   };
   
   const handleRefresh = () => {
@@ -59,6 +211,50 @@ const GmailIntegration = () => {
       title: "Refreshing emails",
       description: "Syncing with Gmail..."
     });
+    
+    const token = localStorage.getItem('gmail_access_token');
+    if (token) {
+      fetchEmails(token);
+    }
+  };
+  
+  const filteredEmails = emails.filter(email => 
+    email.from.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    email.subject.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const markAsRead = async (id: string) => {
+    const token = localStorage.getItem('gmail_access_token');
+    if (!token) return;
+    
+    try {
+      // Mark message as read in Gmail
+      await fetch(
+        `https://www.googleapis.com/gmail/v1/users/me/messages/${id}/modify`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            removeLabelIds: ['UNREAD']
+          })
+        }
+      );
+      
+      // Update local state
+      setEmails(emails.map(email => 
+        email.id === id ? { ...email, read: true } : email
+      ));
+    } catch (error) {
+      console.error('Error marking email as read:', error);
+      toast({
+        title: "Error",
+        description: "Could not mark email as read.",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -132,35 +328,41 @@ const GmailIntegration = () => {
               <TabsTrigger value="important">Important</TabsTrigger>
             </TabsList>
             <TabsContent value="inbox" className="mt-6">
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[250px]">From</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead className="text-right">Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEmails.map((email) => (
-                      <TableRow 
-                        key={email.id} 
-                        className={email.read ? "" : "font-bold bg-blue-50"}
-                        onClick={() => markAsRead(email.id)}
-                      >
-                        <TableCell>{email.from}</TableCell>
-                        <TableCell>{email.subject}</TableCell>
-                        <TableCell className="text-right">{email.date}</TableCell>
-                      </TableRow>
-                    ))}
-                    {filteredEmails.length === 0 && (
+              {isLoadingEmails ? (
+                <div className="flex justify-center items-center h-64">
+                  <p className="text-muted-foreground">Loading emails...</p>
+                </div>
+              ) : (
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
                       <TableRow>
-                        <TableCell colSpan={3} className="text-center">No emails found</TableCell>
+                        <TableHead className="w-[250px]">From</TableHead>
+                        <TableHead>Subject</TableHead>
+                        <TableHead className="text-right">Date</TableHead>
                       </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEmails.map((email) => (
+                        <TableRow 
+                          key={email.id} 
+                          className={email.read ? "" : "font-bold bg-blue-50"}
+                          onClick={() => markAsRead(email.id)}
+                        >
+                          <TableCell>{email.from}</TableCell>
+                          <TableCell>{email.subject}</TableCell>
+                          <TableCell className="text-right">{email.date}</TableCell>
+                        </TableRow>
+                      ))}
+                      {filteredEmails.length === 0 && (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center">No emails found</TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
 
               <div className="mt-4 flex justify-end">
                 <Button>

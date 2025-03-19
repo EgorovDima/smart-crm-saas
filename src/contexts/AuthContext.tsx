@@ -54,6 +54,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
+          console.log("Session found:", session.user.email);
           setUser({
             id: session.user.id,
             email: session.user.email,
@@ -71,6 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
     // Listen for auth changes
     const { data: authListener } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        console.log("Auth state change event:", event);
         if (session?.user) {
           setUser({
             id: session.user.id,
@@ -129,6 +131,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          emailRedirectTo: window.location.origin,
+        }
       });
 
       if (error) {

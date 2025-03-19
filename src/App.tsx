@@ -31,10 +31,13 @@ const AuthCallbackHandler = () => {
       const hash = window.location.hash;
       
       if (hash && hash.includes('access_token')) {
+        console.log("Auth token detected in URL");
         // Set Supabase session from URL
-        const { error } = await supabase.auth.getSession();
+        const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.error('Error getting session:', error);
+        } else {
+          console.log("Session retrieved successfully");
         }
         
         // Remove hash from URL

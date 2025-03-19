@@ -1,8 +1,6 @@
 
 import React from 'react';
 import { LoginForm } from '@/components/auth/LoginForm';
-import { Card } from '@/components/ui/card';
-import { AuthProvider } from '@/contexts/AuthContext';
 
 const Index = () => {
   return (
@@ -31,9 +29,7 @@ const Index = () => {
             </div>
           </div>
         </div>
-        <AuthProvider>
-          <LoginForm />
-        </AuthProvider>
+        <LoginForm />
       </div>
     </div>
   );

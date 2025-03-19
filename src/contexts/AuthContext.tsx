@@ -1,8 +1,8 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase, User } from '../lib/supabase';
-import { useToast } from "@/components/ui/use-toast";
-import { useNavigate } from 'react-router-dom';
+import { useToast } from "@/hooks/use-toast";
+import { useNavigate, useLocation } from 'react-router-dom';
 
 type AuthContextType = {
   user: User | null;
@@ -14,11 +14,31 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+type AuthProviderProps = {
+  children: React.ReactNode;
+  navigateOverride?: (path: string) => void;
+};
+
+export const AuthProvider: React.FC<AuthProviderProps> = ({ 
+  children,
+  navigateOverride
+}) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const { toast } = useToast();
-  const navigate = useNavigate();
+  
+  // Use optional hooks to avoid errors when used outside Router context
+  const navigate = useNavigate && typeof useNavigate === 'function' ? useNavigate() : undefined;
+  const location = useLocation && typeof useLocation === 'function' ? useLocation() : undefined;
+  
+  // Custom navigation function that works both in and out of router context
+  const safeNavigate = (path: string) => {
+    if (navigateOverride) {
+      navigateOverride(path);
+    } else if (navigate) {
+      navigate(path);
+    }
+  };
 
   useEffect(() => {
     // Get initial session
@@ -82,7 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           title: "Welcome back!",
           description: "You've successfully logged in.",
         });
-        navigate('/dashboard');
+        safeNavigate('/dashboard');
       }
     } catch (error: any) {
       toast({
@@ -137,7 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title: "Logged out",
         description: "You have been successfully logged out.",
       });
-      navigate('/');
+      safeNavigate('/');
     } catch (error: any) {
       toast({
         title: "Error",

@@ -1,15 +1,12 @@
 
 import React from 'react';
 import { RegisterForm } from '@/components/auth/RegisterForm';
-import { AuthProvider } from '@/contexts/AuthContext';
 
 const Register = () => {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-r from-blue-50 to-green-50">
       <div className="max-w-md w-full px-4">
-        <AuthProvider>
-          <RegisterForm />
-        </AuthProvider>
+        <RegisterForm />
       </div>
     </div>
   );

@@ -1,8 +1,16 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { supabase, User } from '../lib/supabase';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate, useLocation } from 'react-router-dom';
+
+type User = {
+  id: string;
+  email: string | undefined;
+  name?: string;
+  avatar_url?: string;
+  created_at?: string;
+};
 
 type AuthContextType = {
   user: User | null;
@@ -48,7 +56,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
         if (session?.user) {
           setUser({
             id: session.user.id,
-            email: session.user.email || '',
+            email: session.user.email,
           });
         }
       } catch (error) {
@@ -66,7 +74,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({
         if (session?.user) {
           setUser({
             id: session.user.id,
-            email: session.user.email || '',
+            email: session.user.email,
           });
         } else {
           setUser(null);

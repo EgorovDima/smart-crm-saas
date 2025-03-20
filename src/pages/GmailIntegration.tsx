@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 const GOOGLE_CLIENT_ID = '307019110275-jnlvunpcfe1fnjjb9133ggmu93eoj3vb.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
 const GOOGLE_REDIRECT_URI = window.location.origin + '/gmail';
-const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify';
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels';
 
 const GmailIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
@@ -31,28 +30,31 @@ const GmailIntegration = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   
-  // Check if Gmail is connected on component mount
+  // Clear any URL parameters on component mount to avoid issues with OAuth flow
   useEffect(() => {
-    checkGmailConnection();
-    
-    // Check for OAuth callback
-    const urlParams = new URLSearchParams(window.location.search);
-    const code = urlParams.get('code');
-    const error = urlParams.get('error');
-    
-    if (code) {
-      handleGoogleCallback(code);
-      // Remove code from URL for cleanliness
-      window.history.replaceState({}, document.title, window.location.pathname);
-    } else if (error) {
-      setError(`Google Auth Error: ${error}`);
-      toast({
-        title: "Authentication Error",
-        description: `Google returned an error: ${error}`,
-        variant: "destructive"
-      });
-      window.history.replaceState({}, document.title, window.location.pathname);
+    if (window.location.search) {
+      // Keep the code parameter for processing, but clear it after
+      const urlParams = new URLSearchParams(window.location.search);
+      const code = urlParams.get('code');
+      const error = urlParams.get('error');
+      
+      if (code) {
+        handleGoogleCallback(code);
+        // Remove code from URL for cleanliness
+        window.history.replaceState({}, document.title, window.location.pathname);
+      } else if (error) {
+        setError(`Google Auth Error: ${error}`);
+        toast({
+          title: "Authentication Error",
+          description: `Google returned an error: ${error}`,
+          variant: "destructive"
+        });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
+    
+    // Check if Gmail is connected
+    checkGmailConnection();
   }, []);
   
   const checkGmailConnection = () => {
@@ -60,29 +62,39 @@ const GmailIntegration = () => {
     const gmailToken = localStorage.getItem('gmail_access_token');
     const tokenExpiry = localStorage.getItem('gmail_token_expiry');
     
+    console.log("Checking Gmail connection...");
+    console.log("Access token exists:", !!gmailToken);
+    console.log("Token expiry exists:", !!tokenExpiry);
+    
     if (gmailToken && tokenExpiry) {
       // Check if token is still valid
       if (new Date().getTime() < parseInt(tokenExpiry)) {
+        console.log("Token is still valid, expiry:", new Date(parseInt(tokenExpiry)).toLocaleString());
         setIsConnected(true);
         fetchEmails(gmailToken);
       } else {
+        console.log("Token has expired, attempting to refresh");
         // Token expired, try to refresh it
         const refreshToken = localStorage.getItem('gmail_refresh_token');
         if (refreshToken) {
           refreshAccessToken(refreshToken);
         } else {
           // No refresh token, remove expired token
+          console.log("No refresh token available, clearing expired tokens");
           localStorage.removeItem('gmail_access_token');
           localStorage.removeItem('gmail_token_expiry');
           setIsConnected(false);
           setError("Authentication session expired. Please reconnect.");
         }
       }
+    } else {
+      console.log("No Gmail tokens found in localStorage");
     }
   };
   
   const refreshAccessToken = async (refreshToken: string) => {
     try {
+      console.log("Refreshing access token...");
       const tokenUrl = 'https://oauth2.googleapis.com/token';
       const params = new URLSearchParams();
       params.append('client_id', GOOGLE_CLIENT_ID);
@@ -99,10 +111,13 @@ const GmailIntegration = () => {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to refresh token');
+        const errorData = await response.json();
+        console.error('Token refresh error response:', errorData);
+        throw new Error(`Failed to refresh token: ${errorData.error_description || errorData.error || response.statusText}`);
       }
       
       const data = await response.json();
+      console.log("Token refresh successful");
       
       // Save new access token
       localStorage.setItem('gmail_access_token', data.access_token);
@@ -115,7 +130,7 @@ const GmailIntegration = () => {
       setError(null);
       fetchEmails(data.access_token);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('Token refresh error:', error);
       // Clear all tokens on refresh failure
       localStorage.removeItem('gmail_access_token');
@@ -123,18 +138,32 @@ const GmailIntegration = () => {
       localStorage.removeItem('gmail_token_expiry');
       setIsConnected(false);
       setError("Authentication session expired and couldn't be refreshed. Please reconnect.");
+      
+      toast({
+        title: "Authentication Error",
+        description: error.message || "Failed to refresh authentication. Please reconnect.",
+        variant: "destructive"
+      });
     }
   };
   
   const connectToGmail = () => {
     setError(null);
+    
+    // Clear any existing tokens before starting a new OAuth flow
+    localStorage.removeItem('gmail_access_token');
+    localStorage.removeItem('gmail_refresh_token');
+    localStorage.removeItem('gmail_token_expiry');
+    
     toast({
       title: "Connecting to Gmail",
       description: "Redirecting to Google authentication..."
     });
     
+    console.log("Starting Gmail OAuth flow");
+    
     // Construct the OAuth URL with extra parameters to ensure correct login
-    const authUrl = `https://accounts.google.com/o/oauth2/auth?` +
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
       `&response_type=code` +
@@ -144,6 +173,8 @@ const GmailIntegration = () => {
       `&include_granted_scopes=true` +
       `&login_hint=${encodeURIComponent('logisticstoukraine@gmail.com')}`;
     
+    console.log("Auth URL:", authUrl);
+    
     // Redirect to Google OAuth
     window.location.href = authUrl;
   };
@@ -152,6 +183,8 @@ const GmailIntegration = () => {
     setIsLoadingEmails(true);
     setError(null);
     try {
+      console.log("Received auth code, exchanging for tokens...");
+      
       // Exchange authorization code for tokens
       const tokenUrl = 'https://oauth2.googleapis.com/token';
       const params = new URLSearchParams();
@@ -161,7 +194,12 @@ const GmailIntegration = () => {
       params.append('redirect_uri', GOOGLE_REDIRECT_URI);
       params.append('grant_type', 'authorization_code');
       
-      console.log("Exchanging auth code for tokens...");
+      console.log("Token exchange parameters:", {
+        code: "REDACTED",
+        client_id: GOOGLE_CLIENT_ID,
+        redirect_uri: GOOGLE_REDIRECT_URI,
+      });
+      
       const response = await fetch(tokenUrl, {
         method: 'POST',
         headers: {
@@ -172,22 +210,26 @@ const GmailIntegration = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
-        console.error('Token exchange error:', errorData);
+        console.error('Token exchange error response:', errorData);
         throw new Error(`Failed to exchange code for tokens: ${errorData.error_description || errorData.error || response.statusText}`);
       }
       
       const data = await response.json();
-      console.log("Token exchange successful");
+      console.log("Token exchange successful, received tokens");
       
       // Save tokens to localStorage
       localStorage.setItem('gmail_access_token', data.access_token);
       if (data.refresh_token) {
         localStorage.setItem('gmail_refresh_token', data.refresh_token);
+        console.log("Refresh token saved");
+      } else {
+        console.log("No refresh token received - user may have previously granted access");
       }
       
       // Calculate expiry time
       const expiryTime = new Date().getTime() + (data.expires_in * 1000);
       localStorage.setItem('gmail_token_expiry', expiryTime.toString());
+      console.log("Token expiry set to:", new Date(expiryTime).toLocaleString());
       
       setIsConnected(true);
       toast({
@@ -228,15 +270,29 @@ const GmailIntegration = () => {
       
       if (!messagesResponse.ok) {
         const errorData = await messagesResponse.json();
-        console.error('Email fetch error:', errorData);
+        console.error('Email fetch error response:', errorData);
+        
+        // Check if the error is due to invalid token
+        if (errorData.error?.code === 401 || errorData.error?.status === 'UNAUTHENTICATED') {
+          console.log("Token is invalid, attempting to refresh");
+          const refreshToken = localStorage.getItem('gmail_refresh_token');
+          if (refreshToken) {
+            await refreshAccessToken(refreshToken);
+            return; // refreshAccessToken will call fetchEmails again
+          }
+        }
+        
         throw new Error(`Failed to fetch email list: ${errorData.error?.message || messagesResponse.statusText}`);
       }
       
       const messagesData = await messagesResponse.json();
+      console.log("Email list response:", messagesData);
       
       // If no messages, set empty array
       if (!messagesData.messages || messagesData.messages.length === 0) {
+        console.log("No emails found");
         setEmails([]);
+        setIsLoadingEmails(false);
         return;
       }
       
@@ -252,6 +308,7 @@ const GmailIntegration = () => {
         );
         
         if (!messageResponse.ok) {
+          console.error(`Failed to fetch email ${message.id}:`, await messageResponse.text());
           throw new Error(`Failed to fetch email ${message.id}`);
         }
         
@@ -259,6 +316,7 @@ const GmailIntegration = () => {
       });
       
       const emailsData = await Promise.all(emailPromises);
+      console.log("Fetched detailed email data for", emailsData.length, "emails");
       
       // Process the emails
       const processedEmails = emailsData.map(email => {
@@ -292,6 +350,11 @@ const GmailIntegration = () => {
       if (error.message?.includes('401') || error.message?.includes('auth')) {
         setIsConnected(false);
         localStorage.removeItem('gmail_access_token');
+        toast({
+          title: "Authentication expired",
+          description: "Your Gmail session has expired. Please reconnect.",
+          variant: "destructive"
+        });
       }
     } finally {
       setIsLoadingEmails(false);
@@ -317,6 +380,18 @@ const GmailIntegration = () => {
   };
   
   const handleDisconnect = () => {
+    // Clear tokens from Google's servers
+    const token = localStorage.getItem('gmail_access_token');
+    if (token) {
+      // Revoke the token (best effort - don't wait for it)
+      fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      }).catch(err => console.error("Error revoking token:", err));
+    }
+    
     // Remove tokens from localStorage
     localStorage.removeItem('gmail_access_token');
     localStorage.removeItem('gmail_refresh_token');
@@ -342,8 +417,9 @@ const GmailIntegration = () => {
     if (!token) return;
     
     try {
+      console.log("Marking email as read:", id);
       // Mark message as read in Gmail
-      await fetch(
+      const response = await fetch(
         `https://www.googleapis.com/gmail/v1/users/me/messages/${id}/modify`,
         {
           method: 'POST',
@@ -357,15 +433,23 @@ const GmailIntegration = () => {
         }
       );
       
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error marking email as read:', errorData);
+        throw new Error(errorData.error?.message || 'Failed to mark email as read');
+      }
+      
       // Update local state
       setEmails(emails.map(email => 
         email.id === id ? { ...email, read: true } : email
       ));
-    } catch (error) {
+      
+      console.log("Email marked as read successfully");
+    } catch (error: any) {
       console.error('Error marking email as read:', error);
       toast({
         title: "Error",
-        description: "Could not mark email as read.",
+        description: "Could not mark email as read: " + (error.message || "Unknown error"),
         variant: "destructive"
       });
     }

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Table, 
@@ -25,7 +24,7 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Check, Play, Plus, Pause, Timer } from 'lucide-react';
+import { Check, Play, Plus, Pause, Timer, CheckCircle } from 'lucide-react';
 import { useTimer } from '@/contexts/TimerContext';
 import { useToast } from '@/components/ui/use-toast';
 
@@ -96,7 +95,6 @@ const TaskManagement = () => {
   const { activeTask, startTimer, stopTimer, completeTask, getTimeSpentFormatted } = useTimer();
   const { toast } = useToast();
 
-  // Load tasks from localStorage if available
   useEffect(() => {
     const savedTasks = localStorage.getItem('tasks');
     if (savedTasks) {
@@ -108,7 +106,6 @@ const TaskManagement = () => {
     }
   }, []);
 
-  // Save tasks to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem('tasks', JSON.stringify(tasks));
   }, [tasks]);
@@ -141,7 +138,6 @@ const TaskManagement = () => {
       if (task.id === id) {
         const updatedTask = { ...task, status };
         
-        // Handle task completion
         if (status === 'Completed') {
           completeTask(id);
           toast({
@@ -159,15 +155,11 @@ const TaskManagement = () => {
   };
 
   const handleStartTask = (task: Task) => {
-    // If this task is already active and we're clicking start again, do nothing
     if (activeTask?.id === task.id && activeTask.status === 'In Progress') {
       return;
     }
     
-    // Update task status to In Progress
     updateTaskStatus(task.id, 'In Progress');
-    
-    // Start timing this task
     startTimer(task);
     
     toast({
@@ -203,7 +195,6 @@ const TaskManagement = () => {
         </Button>
       </div>
 
-      {/* Active Task Status Bar */}
       {activeTask && (
         <div className="bg-blue-50 border border-blue-200 rounded-md p-4 flex justify-between items-center">
           <div>
@@ -222,6 +213,22 @@ const TaskManagement = () => {
               className="border-blue-300 text-blue-700"
             >
               <Pause className="h-4 w-4 mr-1" /> Pause
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => {
+                if (activeTask) {
+                  handleCompleteTask(activeTask.id);
+                  toast({
+                    title: "Task Completed",
+                    description: `"${activeTask.name}" marked as completed. Time spent: ${getTimeSpentFormatted()}`,
+                  });
+                }
+              }}
+              className="border-green-300 text-green-700 hover:bg-green-50"
+            >
+              <CheckCircle className="h-4 w-4 mr-1" /> Complete
             </Button>
           </div>
         </div>

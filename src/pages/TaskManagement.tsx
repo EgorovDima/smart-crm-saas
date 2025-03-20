@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Table, 
   TableBody, 
@@ -25,7 +25,9 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
-import { Check, Play, Plus } from 'lucide-react';
+import { Check, Play, Plus, Pause, Timer } from 'lucide-react';
+import { useTimer } from '@/contexts/TimerContext';
+import { useToast } from '@/components/ui/use-toast';
 
 type Task = {
   id: string;
@@ -34,6 +36,7 @@ type Task = {
   assignee: string;
   deadline: string;
   timeEstimate: number;
+  timeSpent?: number;
 };
 
 const initialTasks: Task[] = [
@@ -89,6 +92,26 @@ const TaskManagement = () => {
     deadline: '',
     timeEstimate: 1
   });
+  
+  const { activeTask, startTimer, stopTimer, completeTask, getTimeSpentFormatted } = useTimer();
+  const { toast } = useToast();
+
+  // Load tasks from localStorage if available
+  useEffect(() => {
+    const savedTasks = localStorage.getItem('tasks');
+    if (savedTasks) {
+      try {
+        setTasks(JSON.parse(savedTasks));
+      } catch (error) {
+        console.error('Error parsing tasks from localStorage', error);
+      }
+    }
+  }, []);
+
+  // Save tasks to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('tasks', JSON.stringify(tasks));
+  }, [tasks]);
 
   const handleAddNewTask = () => {
     if (!newTask.name) return;
@@ -114,9 +137,47 @@ const TaskManagement = () => {
   };
 
   const updateTaskStatus = (id: string, status: 'Not Started' | 'In Progress' | 'Completed') => {
-    setTasks(tasks.map(task => 
-      task.id === id ? { ...task, status } : task
-    ));
+    const updatedTasks = tasks.map(task => {
+      if (task.id === id) {
+        const updatedTask = { ...task, status };
+        
+        // Handle task completion
+        if (status === 'Completed') {
+          completeTask(id);
+          toast({
+            title: "Task Completed",
+            description: `"${task.name}" marked as completed. Time spent: ${getTimeSpentFormatted()}`,
+          });
+        }
+        
+        return updatedTask;
+      }
+      return task;
+    });
+    
+    setTasks(updatedTasks);
+  };
+
+  const handleStartTask = (task: Task) => {
+    // If this task is already active and we're clicking start again, do nothing
+    if (activeTask?.id === task.id && activeTask.status === 'In Progress') {
+      return;
+    }
+    
+    // Update task status to In Progress
+    updateTaskStatus(task.id, 'In Progress');
+    
+    // Start timing this task
+    startTimer(task);
+    
+    toast({
+      title: "Task Started",
+      description: `Now tracking time for "${task.name}"`,
+    });
+  };
+
+  const handleCompleteTask = (id: string) => {
+    updateTaskStatus(id, 'Completed');
   };
 
   const getStatusBadgeClass = (status: string) => {
@@ -142,6 +203,30 @@ const TaskManagement = () => {
         </Button>
       </div>
 
+      {/* Active Task Status Bar */}
+      {activeTask && (
+        <div className="bg-blue-50 border border-blue-200 rounded-md p-4 flex justify-between items-center">
+          <div>
+            <p className="text-sm font-medium text-blue-800">Currently Working On:</p>
+            <h3 className="text-lg font-semibold">{activeTask.name}</h3>
+          </div>
+          <div className="flex items-center space-x-2">
+            <div className="bg-white border border-blue-200 rounded-md px-3 py-2 flex items-center">
+              <Timer className="mr-2 h-4 w-4 text-blue-500" />
+              <span className="text-lg font-mono font-semibold">{getTimeSpentFormatted()}</span>
+            </div>
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => stopTimer()}
+              className="border-blue-300 text-blue-700"
+            >
+              <Pause className="h-4 w-4 mr-1" /> Pause
+            </Button>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-md border">
         <h2 className="px-4 py-3 text-lg font-semibold">Tasks Overview</h2>
         <Table>
@@ -157,8 +242,15 @@ const TaskManagement = () => {
           </TableHeader>
           <TableBody>
             {tasks.map((task) => (
-              <TableRow key={task.id}>
-                <TableCell className="font-medium">{task.name}</TableCell>
+              <TableRow key={task.id} className={activeTask?.id === task.id ? "bg-blue-50" : ""}>
+                <TableCell className="font-medium">
+                  {task.name}
+                  {activeTask?.id === task.id && (
+                    <div className="text-xs font-medium text-blue-600 mt-1">
+                      Currently tracking: {getTimeSpentFormatted()}
+                    </div>
+                  )}
+                </TableCell>
                 <TableCell>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadgeClass(task.status)}`}>
                     {task.status}
@@ -170,25 +262,25 @@ const TaskManagement = () => {
                 <TableCell>
                   {task.status !== 'Completed' ? (
                     <div className="flex gap-2">
-                      {task.status === 'Not Started' ? (
+                      {task.status === 'Not Started' || (task.status === 'In Progress' && activeTask?.id !== task.id) ? (
                         <Button
-                          onClick={() => updateTaskStatus(task.id, 'In Progress')}
+                          onClick={() => handleStartTask(task)}
                           size="sm"
                           variant="outline"
                           className="h-8 px-2 text-xs"
                         >
                           <Play className="h-3 w-3 mr-1" /> Start
                         </Button>
-                      ) : (
+                      ) : task.status === 'In Progress' && activeTask?.id === task.id ? (
                         <Button
-                          onClick={() => updateTaskStatus(task.id, 'Completed')}
+                          onClick={() => handleCompleteTask(task.id)}
                           size="sm"
                           variant="outline"
                           className="h-8 px-2 text-xs"
                         >
                           <Check className="h-3 w-3 mr-1" /> Complete
                         </Button>
-                      )}
+                      ) : null}
                     </div>
                   ) : (
                     <span className="text-green-600 font-medium text-sm">Completed</span>

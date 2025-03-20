@@ -12,20 +12,22 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
-import { Mail, Search, PlusCircle, Trash2, Archive, Star, RefreshCw } from 'lucide-react';
+import { Mail, Search, PlusCircle, Trash2, Archive, Star, RefreshCw, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 
-// Google OAuth Configuration
+// Google OAuth Configuration with your provided credentials
 const GOOGLE_CLIENT_ID = '307019110275-jnlvunpcfe1fnjjb9133ggmu93eoj3vb.apps.googleusercontent.com';
+const GOOGLE_CLIENT_SECRET = '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';
 const GOOGLE_REDIRECT_URI = window.location.origin + '/gmail';
-const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send';
+const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify';
 
 const GmailIntegration = () => {
   const [isConnected, setIsConnected] = useState(false);
   const [emails, setEmails] = useState<Array<{id: string, from: string, subject: string, date: string, read: boolean}>>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoadingEmails, setIsLoadingEmails] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   
@@ -36,10 +38,19 @@ const GmailIntegration = () => {
     // Check for OAuth callback
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
+    const error = urlParams.get('error');
     
     if (code) {
       handleGoogleCallback(code);
       // Remove code from URL for cleanliness
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (error) {
+      setError(`Google Auth Error: ${error}`);
+      toast({
+        title: "Authentication Error",
+        description: `Google returned an error: ${error}`,
+        variant: "destructive"
+      });
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -55,46 +66,29 @@ const GmailIntegration = () => {
         setIsConnected(true);
         fetchEmails(gmailToken);
       } else {
-        // Token expired, remove it
-        localStorage.removeItem('gmail_access_token');
-        localStorage.removeItem('gmail_token_expiry');
-        setIsConnected(false);
+        // Token expired, try to refresh it
+        const refreshToken = localStorage.getItem('gmail_refresh_token');
+        if (refreshToken) {
+          refreshAccessToken(refreshToken);
+        } else {
+          // No refresh token, remove expired token
+          localStorage.removeItem('gmail_access_token');
+          localStorage.removeItem('gmail_token_expiry');
+          setIsConnected(false);
+          setError("Authentication session expired. Please reconnect.");
+        }
       }
     }
   };
   
-  const connectToGmail = () => {
-    toast({
-      title: "Connecting to Gmail",
-      description: "Redirecting to Google authentication..."
-    });
-    
-    // Construct the OAuth URL
-    const authUrl = `https://accounts.google.com/o/oauth2/auth?` +
-      `client_id=${GOOGLE_CLIENT_ID}` +
-      `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
-      `&response_type=code` +
-      `&scope=${encodeURIComponent(GMAIL_SCOPES)}` +
-      `&access_type=offline` +
-      `&prompt=consent` +
-      `&login_hint=${encodeURIComponent('logisticstoukraine@gmail.com')}`;
-    
-    // Redirect to Google OAuth
-    window.location.href = authUrl;
-  };
-  
-  const handleGoogleCallback = async (code: string) => {
+  const refreshAccessToken = async (refreshToken: string) => {
     try {
-      // Exchange authorization code for tokens
-      // Note: In a production app, this should be done server-side to protect your client secret
-      // For this example, we're doing it client-side but this is not recommended for real applications
       const tokenUrl = 'https://oauth2.googleapis.com/token';
       const params = new URLSearchParams();
-      params.append('code', code);
       params.append('client_id', GOOGLE_CLIENT_ID);
-      params.append('client_secret', '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'); // Normally this should be kept server-side
-      params.append('redirect_uri', GOOGLE_REDIRECT_URI);
-      params.append('grant_type', 'authorization_code');
+      params.append('client_secret', GOOGLE_CLIENT_SECRET);
+      params.append('refresh_token', refreshToken);
+      params.append('grant_type', 'refresh_token');
       
       const response = await fetch(tokenUrl, {
         method: 'POST',
@@ -105,14 +99,91 @@ const GmailIntegration = () => {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to exchange code for tokens');
+        throw new Error('Failed to refresh token');
       }
       
       const data = await response.json();
       
-      // Save tokens to localStorage (in a real app, consider using a more secure storage method)
+      // Save new access token
       localStorage.setItem('gmail_access_token', data.access_token);
-      localStorage.setItem('gmail_refresh_token', data.refresh_token);
+      
+      // Calculate expiry time
+      const expiryTime = new Date().getTime() + (data.expires_in * 1000);
+      localStorage.setItem('gmail_token_expiry', expiryTime.toString());
+      
+      setIsConnected(true);
+      setError(null);
+      fetchEmails(data.access_token);
+      
+    } catch (error) {
+      console.error('Token refresh error:', error);
+      // Clear all tokens on refresh failure
+      localStorage.removeItem('gmail_access_token');
+      localStorage.removeItem('gmail_refresh_token');
+      localStorage.removeItem('gmail_token_expiry');
+      setIsConnected(false);
+      setError("Authentication session expired and couldn't be refreshed. Please reconnect.");
+    }
+  };
+  
+  const connectToGmail = () => {
+    setError(null);
+    toast({
+      title: "Connecting to Gmail",
+      description: "Redirecting to Google authentication..."
+    });
+    
+    // Construct the OAuth URL with extra parameters to ensure correct login
+    const authUrl = `https://accounts.google.com/o/oauth2/auth?` +
+      `client_id=${GOOGLE_CLIENT_ID}` +
+      `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
+      `&response_type=code` +
+      `&scope=${encodeURIComponent(GMAIL_SCOPES)}` +
+      `&access_type=offline` +
+      `&prompt=consent` +
+      `&include_granted_scopes=true` +
+      `&login_hint=${encodeURIComponent('logisticstoukraine@gmail.com')}`;
+    
+    // Redirect to Google OAuth
+    window.location.href = authUrl;
+  };
+  
+  const handleGoogleCallback = async (code: string) => {
+    setIsLoadingEmails(true);
+    setError(null);
+    try {
+      // Exchange authorization code for tokens
+      const tokenUrl = 'https://oauth2.googleapis.com/token';
+      const params = new URLSearchParams();
+      params.append('code', code);
+      params.append('client_id', GOOGLE_CLIENT_ID);
+      params.append('client_secret', GOOGLE_CLIENT_SECRET);
+      params.append('redirect_uri', GOOGLE_REDIRECT_URI);
+      params.append('grant_type', 'authorization_code');
+      
+      console.log("Exchanging auth code for tokens...");
+      const response = await fetch(tokenUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Token exchange error:', errorData);
+        throw new Error(`Failed to exchange code for tokens: ${errorData.error_description || errorData.error || response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("Token exchange successful");
+      
+      // Save tokens to localStorage
+      localStorage.setItem('gmail_access_token', data.access_token);
+      if (data.refresh_token) {
+        localStorage.setItem('gmail_refresh_token', data.refresh_token);
+      }
       
       // Calculate expiry time
       const expiryTime = new Date().getTime() + (data.expires_in * 1000);
@@ -125,21 +196,26 @@ const GmailIntegration = () => {
       });
       
       // Fetch emails using the new token
-      fetchEmails(data.access_token);
+      await fetchEmails(data.access_token);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error('OAuth callback error:', error);
+      setError(error.message || "Authentication failed");
       toast({
         title: "Connection failed",
-        description: "Could not connect to Gmail. Please try again.",
+        description: error.message || "Could not connect to Gmail. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setIsLoadingEmails(false);
     }
   };
   
   const fetchEmails = async (token: string) => {
     setIsLoadingEmails(true);
+    setError(null);
     try {
+      console.log("Fetching emails...");
       // Get list of messages
       const messagesResponse = await fetch(
         'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=10', 
@@ -151,10 +227,18 @@ const GmailIntegration = () => {
       );
       
       if (!messagesResponse.ok) {
-        throw new Error('Failed to fetch email list');
+        const errorData = await messagesResponse.json();
+        console.error('Email fetch error:', errorData);
+        throw new Error(`Failed to fetch email list: ${errorData.error?.message || messagesResponse.statusText}`);
       }
       
       const messagesData = await messagesResponse.json();
+      
+      // If no messages, set empty array
+      if (!messagesData.messages || messagesData.messages.length === 0) {
+        setEmails([]);
+        return;
+      }
       
       // Fetch details for each message
       const emailPromises = messagesData.messages.map(async (message: {id: string}) => {
@@ -194,13 +278,21 @@ const GmailIntegration = () => {
       });
       
       setEmails(processedEmails);
-    } catch (error) {
+      console.log("Emails fetched successfully:", processedEmails.length);
+    } catch (error: any) {
       console.error('Error fetching emails:', error);
+      setError(error.message || "Failed to fetch emails");
       toast({
         title: "Error fetching emails",
-        description: "Could not retrieve emails from Gmail. Please try reconnecting.",
+        description: error.message || "Could not retrieve emails from Gmail. Please try reconnecting.",
         variant: "destructive"
       });
+      
+      // If unauthorized, tokens might be invalid
+      if (error.message?.includes('401') || error.message?.includes('auth')) {
+        setIsConnected(false);
+        localStorage.removeItem('gmail_access_token');
+      }
     } finally {
       setIsLoadingEmails(false);
     }
@@ -215,7 +307,29 @@ const GmailIntegration = () => {
     const token = localStorage.getItem('gmail_access_token');
     if (token) {
       fetchEmails(token);
+    } else {
+      toast({
+        title: "Authentication required",
+        description: "Please reconnect your Gmail account",
+        variant: "destructive"
+      });
     }
+  };
+  
+  const handleDisconnect = () => {
+    // Remove tokens from localStorage
+    localStorage.removeItem('gmail_access_token');
+    localStorage.removeItem('gmail_refresh_token');
+    localStorage.removeItem('gmail_token_expiry');
+    
+    setIsConnected(false);
+    setEmails([]);
+    setError(null);
+    
+    toast({
+      title: "Disconnected",
+      description: "Your Gmail account has been disconnected."
+    });
   };
   
   const filteredEmails = emails.filter(email => 
@@ -269,13 +383,37 @@ const GmailIntegration = () => {
             <Mail className="mr-2 h-4 w-4" /> Connect Gmail
           </Button>
         ) : (
-          <Button onClick={handleRefresh} variant="outline">
-            <RefreshCw className="mr-2 h-4 w-4" /> Refresh
-          </Button>
+          <div className="space-x-2 flex">
+            <Button onClick={handleRefresh} variant="outline">
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh
+            </Button>
+            <Button onClick={handleDisconnect} variant="outline" className="border-red-300 text-red-700 hover:bg-red-50">
+              Disconnect
+            </Button>
+          </div>
         )}
       </div>
       
-      {!isConnected ? (
+      {error && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="pt-6 flex items-start">
+            <AlertCircle className="h-5 w-5 text-red-600 mr-2 mt-0.5" />
+            <div>
+              <h3 className="font-medium text-red-800">Connection Error</h3>
+              <p className="text-red-700">{error}</p>
+              <Button 
+                className="mt-2 bg-red-600 hover:bg-red-700" 
+                size="sm"
+                onClick={connectToGmail}
+              >
+                Try Reconnecting
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+      
+      {!isConnected && !error ? (
         <Card className="mt-6">
           <CardHeader>
             <CardTitle>Connect your Gmail account</CardTitle>
@@ -286,7 +424,7 @@ const GmailIntegration = () => {
           </CardHeader>
           <CardContent>
             <div className="flex flex-col space-y-4">
-              <p>Connect with the following email: logisticstoukraine@gmail.com</p>
+              <p>Connect with the following email: <strong>logisticstoukraine@gmail.com</strong></p>
               <div className="flex justify-start">
                 <Button onClick={connectToGmail} className="bg-blue-600 hover:bg-blue-700">
                   <Mail className="mr-2 h-4 w-4" /> Connect to Gmail
@@ -295,7 +433,7 @@ const GmailIntegration = () => {
             </div>
           </CardContent>
         </Card>
-      ) : (
+      ) : isConnected ? (
         <>
           <div className="flex justify-between mb-4">
             <div className="relative w-full max-w-sm">
@@ -388,7 +526,7 @@ const GmailIntegration = () => {
             </TabsContent>
           </Tabs>
         </>
-      )}
+      ) : null}
     </div>
   );
 };

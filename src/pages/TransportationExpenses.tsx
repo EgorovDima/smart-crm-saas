@@ -4,9 +4,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { FileText, Download, PlusCircle, Printer, Eye } from 'lucide-react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from "@/components/ui/table";
 
 interface ExpenseDocument {
   id: string;
@@ -52,31 +59,56 @@ const TransportationExpenses = () => {
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
-    setDocumentForm({ ...documentForm, [name]: value });
+    let parsedValue: string | number = value;
     
-    // Auto-calculate the total amount when amount or expeditionAmount changes
-    if (name === 'amount' || name === 'expeditionAmount') {
-      const amount = name === 'amount' ? parseFloat(value) : documentForm.amount;
-      const expeditionAmount = name === 'expeditionAmount' ? parseFloat(value) : documentForm.expeditionAmount;
-      
-      setDocumentForm(prev => ({
-        ...prev,
-        totalAmount: amount + expeditionAmount
-      }));
+    if (name === 'distance' || name === 'amount' || name === 'expeditionAmount') {
+      parsedValue = value === '' ? 0 : parseFloat(value);
     }
+    
+    setDocumentForm(prevForm => {
+      const updatedForm = { ...prevForm, [name]: parsedValue };
+      
+      if (name === 'amount' || name === 'expeditionAmount') {
+        const amount = name === 'amount' ? 
+          (parsedValue as number) : prevForm.amount;
+        const expeditionAmount = name === 'expeditionAmount' ? 
+          (parsedValue as number) : prevForm.expeditionAmount;
+        
+        updatedForm.totalAmount = amount + expeditionAmount;
+      }
+      
+      return updatedForm;
+    });
+  };
+
+  const isFormValid = () => {
+    return (
+      documentForm.referenceNumber.trim() !== '' && 
+      documentForm.vehicle.trim() !== '' && 
+      documentForm.route.trim() !== ''
+    );
   };
 
   const handleCreateDocument = () => {
+    if (!isFormValid()) {
+      toast({
+        title: "Помилка валідації",
+        description: "Будь ласка, заповніть всі обов'язкові поля.",
+        variant: "destructive"
+      });
+      return;
+    }
+
     const newDocument: ExpenseDocument = {
       id: Date.now().toString(),
       date: documentForm.date,
       referenceNumber: documentForm.referenceNumber,
       vehicle: documentForm.vehicle,
       route: documentForm.route,
-      distance: parseFloat(documentForm.distance.toString()),
-      amount: parseFloat(documentForm.amount.toString()),
-      expeditionAmount: parseFloat(documentForm.expeditionAmount.toString()),
-      totalAmount: parseFloat(documentForm.totalAmount.toString()),
+      distance: Number(documentForm.distance),
+      amount: Number(documentForm.amount),
+      expeditionAmount: Number(documentForm.expeditionAmount),
+      totalAmount: Number(documentForm.totalAmount),
     };
 
     setDocuments([...documents, newDocument]);
@@ -86,7 +118,6 @@ const TransportationExpenses = () => {
       description: `Довідка про транспортно-експедиційні витрати №${documentForm.referenceNumber} створена успішно.`
     });
 
-    // Reset form but keep the date
     setDocumentForm({
       date: documentForm.date,
       referenceNumber: '',
@@ -105,13 +136,11 @@ const TransportationExpenses = () => {
   };
 
   const handleGenerateDocument = (document: ExpenseDocument) => {
-    // Simulate document generation
     toast({
       title: "Документ згенеровано",
       description: `Довідка про транспортно-експедиційні витрати №${document.referenceNumber} згенерована успішно.`
     });
 
-    // In a real implementation, this would trigger the document download
     setTimeout(() => {
       toast({
         title: "Готово",
@@ -120,9 +149,7 @@ const TransportationExpenses = () => {
     }, 1000);
   };
 
-  // Helper function to convert numbers to Ukrainian text format
   const numberToUkrainianText = (number: number) => {
-    // This is a simplified version - in a real app would be more complex
     const thousands = Math.floor(number / 1000);
     const remainder = number % 1000;
     
@@ -253,7 +280,10 @@ const TransportationExpenses = () => {
               </div>
               
               <div className="mt-6 flex justify-end">
-                <Button onClick={handleCreateDocument} disabled={!documentForm.referenceNumber || !documentForm.vehicle || !documentForm.route}>
+                <Button 
+                  onClick={handleCreateDocument} 
+                  disabled={!isFormValid()}
+                >
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Створити довідку
                 </Button>
@@ -272,47 +302,45 @@ const TransportationExpenses = () => {
             </CardHeader>
             <CardContent>
               {documents.length > 0 ? (
-                <div className="rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b bg-gray-50">
-                        <th className="px-4 py-2 text-left font-medium">№</th>
-                        <th className="px-4 py-2 text-left font-medium">Дата</th>
-                        <th className="px-4 py-2 text-left font-medium">Маршрут</th>
-                        <th className="px-4 py-2 text-left font-medium">Сума (грн)</th>
-                        <th className="px-4 py-2 text-right font-medium">Дії</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {documents.map((doc, index) => (
-                        <tr key={doc.id} className="border-b">
-                          <td className="px-4 py-2">{doc.referenceNumber}</td>
-                          <td className="px-4 py-2">
-                            {new Date(doc.date).toLocaleDateString('uk-UA')}
-                          </td>
-                          <td className="px-4 py-2">{doc.route}</td>
-                          <td className="px-4 py-2">{doc.totalAmount.toLocaleString()} грн</td>
-                          <td className="px-4 py-2 text-right space-x-2">
-                            <Button 
-                              variant="outline" 
-                              size="sm" 
-                              onClick={() => handlePreviewDocument(doc)}
-                            >
-                              <Eye className="h-4 w-4 mr-1" /> Перегляд
-                            </Button>
-                            <Button 
-                              variant="outline" 
-                              size="sm"
-                              onClick={() => handleGenerateDocument(doc)}
-                            >
-                              <Download className="h-4 w-4 mr-1" /> Word
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>№</TableHead>
+                      <TableHead>Дата</TableHead>
+                      <TableHead>Маршрут</TableHead>
+                      <TableHead>Сума (грн)</TableHead>
+                      <TableHead className="text-right">Дії</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {documents.map((doc) => (
+                      <TableRow key={doc.id}>
+                        <TableCell>{doc.referenceNumber}</TableCell>
+                        <TableCell>
+                          {new Date(doc.date).toLocaleDateString('uk-UA')}
+                        </TableCell>
+                        <TableCell>{doc.route}</TableCell>
+                        <TableCell>{doc.totalAmount.toLocaleString()} грн</TableCell>
+                        <TableCell className="text-right space-x-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => handlePreviewDocument(doc)}
+                          >
+                            <Eye className="h-4 w-4 mr-1" /> Перегляд
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleGenerateDocument(doc)}
+                          >
+                            <Download className="h-4 w-4 mr-1" /> Word
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
                   <FileText className="mx-auto h-12 w-12 mb-2 opacity-30" />

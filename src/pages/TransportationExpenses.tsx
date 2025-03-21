@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -89,7 +90,7 @@ const TransportationExpenses = () => {
     );
   };
 
-  const handleCreateDocument = (e: React.MouseEvent<HTMLButtonElement>) => {
+  const handleCreateDocument = (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!isFormValid()) {
@@ -194,7 +195,7 @@ const TransportationExpenses = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form className="space-y-4">
+              <form className="space-y-4" onSubmit={handleCreateDocument}>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="date">Дата</Label>
@@ -214,6 +215,7 @@ const TransportationExpenses = () => {
                       placeholder="Наприклад: 80"
                       value={documentForm.referenceNumber}
                       onChange={handleFormChange}
+                      required
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -224,6 +226,7 @@ const TransportationExpenses = () => {
                       placeholder="Наприклад: VOLVO ВО2181ВН/ВО2017ХF"
                       value={documentForm.vehicle}
                       onChange={handleFormChange}
+                      required
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -234,6 +237,7 @@ const TransportationExpenses = () => {
                       placeholder="Наприклад: Болгарія м. Девня - м/п Порубне - Тернопільська область м. Кременець"
                       value={documentForm.route}
                       onChange={handleFormChange}
+                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -284,8 +288,8 @@ const TransportationExpenses = () => {
                 
                 <div className="mt-6 flex justify-end">
                   <Button 
-                    type="button"
-                    onClick={handleCreateDocument}
+                    type="submit"
+                    disabled={!isFormValid()}
                   >
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Створити довідку

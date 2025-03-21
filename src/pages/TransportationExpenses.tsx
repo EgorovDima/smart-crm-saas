@@ -1,11 +1,10 @@
-
 import React, { useState, FormEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { FileText, Download, PlusCircle, Printer, Eye } from 'lucide-react';
 import {
   Table,
@@ -90,7 +89,7 @@ const TransportationExpenses = () => {
     );
   };
 
-  const handleCreateDocument = (e: React.FormEvent) => {
+  const handleCreateDocument = (e: FormEvent) => {
     e.preventDefault();
     
     if (!isFormValid()) {
@@ -215,7 +214,6 @@ const TransportationExpenses = () => {
                       placeholder="Наприклад: 80"
                       value={documentForm.referenceNumber}
                       onChange={handleFormChange}
-                      required
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -226,7 +224,6 @@ const TransportationExpenses = () => {
                       placeholder="Наприклад: VOLVO ВО2181ВН/ВО2017ХF"
                       value={documentForm.vehicle}
                       onChange={handleFormChange}
-                      required
                     />
                   </div>
                   <div className="space-y-2 md:col-span-2">
@@ -237,7 +234,6 @@ const TransportationExpenses = () => {
                       placeholder="Наприклад: Болгарія м. Девня - м/п Порубне - Тернопільська область м. Кременець"
                       value={documentForm.route}
                       onChange={handleFormChange}
-                      required
                     />
                   </div>
                   <div className="space-y-2">
@@ -287,10 +283,7 @@ const TransportationExpenses = () => {
                 </div>
                 
                 <div className="mt-6 flex justify-end">
-                  <Button 
-                    type="submit"
-                    disabled={!isFormValid()}
-                  >
+                  <Button type="submit">
                     <PlusCircle className="mr-2 h-4 w-4" />
                     Створити довідку
                   </Button>

@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { useToast } from '@/hooks/use-toast';
+import { useToast } from '@/components/ui/use-toast';
 import { FileText, Download, PlusCircle, Printer, Eye } from 'lucide-react';
 import {
   Table,
@@ -89,7 +89,9 @@ const TransportationExpenses = () => {
     );
   };
 
-  const handleCreateDocument = () => {
+  const handleCreateDocument = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    
     if (!isFormValid()) {
       toast({
         title: "Помилка валідації",
@@ -111,7 +113,7 @@ const TransportationExpenses = () => {
       totalAmount: Number(documentForm.totalAmount),
     };
 
-    setDocuments([...documents, newDocument]);
+    setDocuments(prev => [...prev, newDocument]);
     
     toast({
       title: "Документ створено",
@@ -192,102 +194,104 @@ const TransportationExpenses = () => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="date">Дата</Label>
-                  <Input 
-                    id="date"
-                    name="date"
-                    type="date"
-                    value={documentForm.date}
-                    onChange={handleFormChange}
-                  />
+              <form className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="date">Дата</Label>
+                    <Input 
+                      id="date"
+                      name="date"
+                      type="date"
+                      value={documentForm.date}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="referenceNumber">Вихідний номер</Label>
+                    <Input 
+                      id="referenceNumber"
+                      name="referenceNumber"
+                      placeholder="Наприклад: 80"
+                      value={documentForm.referenceNumber}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="vehicle">Транспортний засіб</Label>
+                    <Input 
+                      id="vehicle"
+                      name="vehicle"
+                      placeholder="Наприклад: VOLVO ВО2181ВН/ВО2017ХF"
+                      value={documentForm.vehicle}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="route">Маршрут</Label>
+                    <Input 
+                      id="route"
+                      name="route"
+                      placeholder="Наприклад: Болгарія м. Девня - м/п Порубне - Тернопільська область м. Кременець"
+                      value={documentForm.route}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="distance">Відстань (км)</Label>
+                    <Input 
+                      id="distance"
+                      name="distance"
+                      type="number"
+                      placeholder="Наприклад: 940"
+                      value={documentForm.distance === 0 ? '' : documentForm.distance}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="amount">Вартість перевезення (грн)</Label>
+                    <Input 
+                      id="amount"
+                      name="amount"
+                      type="number"
+                      placeholder="Наприклад: 60000"
+                      value={documentForm.amount === 0 ? '' : documentForm.amount}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="expeditionAmount">Вартість експедиційних послуг (грн)</Label>
+                    <Input 
+                      id="expeditionAmount"
+                      name="expeditionAmount"
+                      type="number"
+                      placeholder="Наприклад: 1000"
+                      value={documentForm.expeditionAmount === 0 ? '' : documentForm.expeditionAmount}
+                      onChange={handleFormChange}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="totalAmount">Загальна вартість (грн)</Label>
+                    <Input 
+                      id="totalAmount"
+                      name="totalAmount"
+                      type="number"
+                      readOnly
+                      value={documentForm.totalAmount === 0 ? '' : documentForm.totalAmount}
+                      className="bg-gray-50"
+                    />
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="referenceNumber">Вихідний номер</Label>
-                  <Input 
-                    id="referenceNumber"
-                    name="referenceNumber"
-                    placeholder="Наприклад: 80"
-                    value={documentForm.referenceNumber}
-                    onChange={handleFormChange}
-                  />
+                
+                <div className="mt-6 flex justify-end">
+                  <Button 
+                    type="button"
+                    onClick={handleCreateDocument}
+                  >
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Створити довідку
+                  </Button>
                 </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="vehicle">Транспортний засіб</Label>
-                  <Input 
-                    id="vehicle"
-                    name="vehicle"
-                    placeholder="Наприклад: VOLVO ВО2181ВН/ВО2017ХF"
-                    value={documentForm.vehicle}
-                    onChange={handleFormChange}
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <Label htmlFor="route">Маршрут</Label>
-                  <Input 
-                    id="route"
-                    name="route"
-                    placeholder="Наприклад: Болгарія м. Девня - м/п Порубне - Тернопільська область м. Кременець"
-                    value={documentForm.route}
-                    onChange={handleFormChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="distance">Відстань (км)</Label>
-                  <Input 
-                    id="distance"
-                    name="distance"
-                    type="number"
-                    placeholder="Наприклад: 940"
-                    value={documentForm.distance}
-                    onChange={handleFormChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="amount">Вартість перевезення (грн)</Label>
-                  <Input 
-                    id="amount"
-                    name="amount"
-                    type="number"
-                    placeholder="Наприклад: 60000"
-                    value={documentForm.amount}
-                    onChange={handleFormChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="expeditionAmount">Вартість експедиційних послуг (грн)</Label>
-                  <Input 
-                    id="expeditionAmount"
-                    name="expeditionAmount"
-                    type="number"
-                    placeholder="Наприклад: 1000"
-                    value={documentForm.expeditionAmount}
-                    onChange={handleFormChange}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="totalAmount">Загальна вартість (грн)</Label>
-                  <Input 
-                    id="totalAmount"
-                    name="totalAmount"
-                    type="number"
-                    readOnly
-                    value={documentForm.totalAmount}
-                    className="bg-gray-50"
-                  />
-                </div>
-              </div>
-              
-              <div className="mt-6 flex justify-end">
-                <Button 
-                  onClick={handleCreateDocument} 
-                  disabled={!isFormValid()}
-                >
-                  <PlusCircle className="mr-2 h-4 w-4" />
-                  Створити довідку
-                </Button>
-              </div>
+              </form>
             </CardContent>
           </Card>
         </TabsContent>

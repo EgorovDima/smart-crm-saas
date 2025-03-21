@@ -74,8 +74,8 @@ const InvoiceCreation = () => {
     const totalAmount = calculateTotal(data.services).toFixed(2).replace('.', ',');
     
     toast({
-      title: "Invoice created",
-      description: `Invoice #${data.invoiceNumber} for ${data.customerName} has been created.`
+      title: "Рахунок створено",
+      description: `Рахунок №${data.invoiceNumber} для ${data.customerName} було створено.`
     });
     
     setInvoices([
@@ -111,14 +111,14 @@ const InvoiceCreation = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Invoice Creation</h1>
-        <p className="text-muted-foreground">Create and manage invoices for your clients</p>
+        <h1 className="text-3xl font-bold tracking-tight">Створення рахунку</h1>
+        <p className="text-muted-foreground">Створюйте та керуйте рахунками для ваших клієнтів</p>
       </div>
       
       <Tabs defaultValue="create">
         <TabsList>
-          <TabsTrigger value="create">Create New Invoice</TabsTrigger>
-          <TabsTrigger value="manage">Manage Invoices</TabsTrigger>
+          <TabsTrigger value="create">Створити новий рахунок</TabsTrigger>
+          <TabsTrigger value="manage">Керування рахунками</TabsTrigger>
         </TabsList>
         
         <TabsContent value="create" className="space-y-4">
@@ -126,8 +126,8 @@ const InvoiceCreation = () => {
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Invoice Details</CardTitle>
-                  <CardDescription>Enter the basic information for this invoice</CardDescription>
+                  <CardTitle>Інформація про рахунок</CardTitle>
+                  <CardDescription>Введіть основну інформацію для цього рахунку</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -136,7 +136,7 @@ const InvoiceCreation = () => {
                       name="invoiceNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Invoice Number</FormLabel>
+                          <FormLabel>Номер рахунку</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -150,7 +150,7 @@ const InvoiceCreation = () => {
                       name="invoiceDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Invoice Date</FormLabel>
+                          <FormLabel>Дата рахунку</FormLabel>
                           <FormControl>
                             <Input type="date" {...field} />
                           </FormControl>
@@ -165,7 +165,7 @@ const InvoiceCreation = () => {
                     name="customerName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Customer Name</FormLabel>
+                        <FormLabel>Назва клієнта</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -179,7 +179,7 @@ const InvoiceCreation = () => {
                     name="customerPhone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Customer Phone</FormLabel>
+                        <FormLabel>Телефон клієнта</FormLabel>
                         <FormControl>
                           <Input {...field} />
                         </FormControl>
@@ -194,7 +194,7 @@ const InvoiceCreation = () => {
                       name="contractNumber"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Contract Number</FormLabel>
+                          <FormLabel>Номер договору</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -208,7 +208,7 @@ const InvoiceCreation = () => {
                       name="contractDate"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel>Contract Date</FormLabel>
+                          <FormLabel>Дата договору</FormLabel>
                           <FormControl>
                             <Input {...field} />
                           </FormControl>
@@ -224,11 +224,11 @@ const InvoiceCreation = () => {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>Services & Products</CardTitle>
-                      <CardDescription>Enter the services or products for this invoice</CardDescription>
+                      <CardTitle>Послуги і товари</CardTitle>
+                      <CardDescription>Введіть послуги або товари для цього рахунку</CardDescription>
                     </div>
                     <Button type="button" variant="outline" size="sm" onClick={handleAddService}>
-                      <Plus className="mr-2 h-4 w-4" /> Add Service
+                      <Plus className="mr-2 h-4 w-4" /> Додати послугу
                     </Button>
                   </div>
                 </CardHeader>
@@ -237,14 +237,14 @@ const InvoiceCreation = () => {
                     {form.watch('services').map((_, index) => (
                       <div key={index} className="grid grid-cols-12 gap-2 items-end">
                         <div className="col-span-5">
-                          <Label>Description</Label>
+                          <Label>Опис</Label>
                           <Input
                             {...form.register(`services.${index}.description`)}
-                            placeholder="Transport service"
+                            placeholder="Транспортні послуги"
                           />
                         </div>
                         <div className="col-span-1">
-                          <Label>Qty</Label>
+                          <Label>К-сть</Label>
                           <Input
                             {...form.register(`services.${index}.quantity`)}
                             type="number"
@@ -256,11 +256,11 @@ const InvoiceCreation = () => {
                           />
                         </div>
                         <div className="col-span-1">
-                          <Label>Unit</Label>
+                          <Label>Од.</Label>
                           <Input {...form.register(`services.${index}.unit`)} />
                         </div>
                         <div className="col-span-2">
-                          <Label>Price</Label>
+                          <Label>Ціна</Label>
                           <Input
                             {...form.register(`services.${index}.price`)}
                             type="number"
@@ -273,7 +273,7 @@ const InvoiceCreation = () => {
                           />
                         </div>
                         <div className="col-span-2">
-                          <Label>Amount</Label>
+                          <Label>Сума</Label>
                           <Input
                             {...form.register(`services.${index}.amount`)}
                             readOnly
@@ -295,7 +295,7 @@ const InvoiceCreation = () => {
                     
                     <div className="flex justify-end border-t pt-4">
                       <div className="text-right">
-                        <div className="text-sm text-muted-foreground">Total Amount:</div>
+                        <div className="text-sm text-muted-foreground">Загальна сума:</div>
                         <div className="text-xl font-bold">
                           {calculateTotal(form.watch('services')).toFixed(2).replace('.', ',')} грн
                         </div>
@@ -309,13 +309,13 @@ const InvoiceCreation = () => {
                 <Dialog>
                   <DialogTrigger asChild>
                     <Button type="button" variant="outline">
-                      <FileText className="mr-2 h-4 w-4" /> Preview
+                      <FileText className="mr-2 h-4 w-4" /> Перегляд
                     </Button>
                   </DialogTrigger>
                   <DialogContent className="max-w-3xl">
                     <DialogHeader>
-                      <DialogTitle>Invoice Preview</DialogTitle>
-                      <DialogDescription>Preview how your invoice will look</DialogDescription>
+                      <DialogTitle>Перегляд рахунку</DialogTitle>
+                      <DialogDescription>Попередній перегляд вашого рахунку</DialogDescription>
                     </DialogHeader>
                     <div className="bg-white rounded-md p-6 space-y-4 border">
                       <div className="text-center font-bold text-lg mb-6">
@@ -378,17 +378,17 @@ const InvoiceCreation = () => {
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                       <Button variant="outline">
-                        <Printer className="mr-2 h-4 w-4" /> Print
+                        <Printer className="mr-2 h-4 w-4" /> Друк
                       </Button>
                       <Button variant="outline">
-                        <Download className="mr-2 h-4 w-4" /> Download PDF
+                        <Download className="mr-2 h-4 w-4" /> Завантажити PDF
                       </Button>
                     </div>
                   </DialogContent>
                 </Dialog>
                 
                 <Button type="submit">
-                  Create Invoice
+                  Створити рахунок
                 </Button>
               </div>
             </form>
@@ -398,19 +398,19 @@ const InvoiceCreation = () => {
         <TabsContent value="manage">
           <Card>
             <CardHeader>
-              <CardTitle>Invoice List</CardTitle>
-              <CardDescription>Manage your existing invoices</CardDescription>
+              <CardTitle>Список рахунків</CardTitle>
+              <CardDescription>Керуйте своїми наявними рахунками</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="rounded-md border">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b bg-muted/50">
-                      <th className="p-3 text-left">Invoice #</th>
-                      <th className="p-3 text-left">Date</th>
-                      <th className="p-3 text-left">Customer</th>
-                      <th className="p-3 text-right">Total</th>
-                      <th className="p-3 text-right">Actions</th>
+                      <th className="p-3 text-left">Рахунок №</th>
+                      <th className="p-3 text-left">Дата</th>
+                      <th className="p-3 text-left">Клієнт</th>
+                      <th className="p-3 text-right">Сума</th>
+                      <th className="p-3 text-right">Дії</th>
                     </tr>
                   </thead>
                   <tbody>

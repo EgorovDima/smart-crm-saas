@@ -49,14 +49,6 @@ const AnalysisChat: React.FC<AnalysisChatProps> = ({ fileName, fileType }) => {
     
     try {
       // Send the question to the AI
-      const prompt = `
-      Regarding the customs data file "${fileName}" (${fileType} format):
-      
-      ${inputMessage}
-      
-      Based on the context that this is customs import/export data, provide a helpful response.
-      `;
-      
       const { data, error } = await supabase.functions.invoke('analyze-file', {
         body: {
           fileName,

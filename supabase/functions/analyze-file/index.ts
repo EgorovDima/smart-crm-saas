@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { fileName, fileType, analysisType } = await req.json();
+    const { fileName, fileType, analysisType, question } = await req.json();
     console.log(`Analyzing file: ${fileName}, type: ${fileType}, analysis: ${analysisType}`);
 
     // For a real implementation, you would:
@@ -22,36 +22,53 @@ serve(async (req) => {
     // 2. Parse it based on fileType (CSV, XLSX)
     // 3. Process the data
 
-    // Here we're using a basic analysis with a model
-    const prompt = `
-    Analyze this customs data file named "${fileName}" (${fileType} format).
+    // Configure the prompt based on whether this is a general analysis or a specific question
+    let prompt;
     
-    Please provide:
-    1. General overview of the imports/exports
-    2. Top 20 goods by weight
-    3. Top 20 companies for each of these goods
-    4. Key insights and trends
-    5. Recommendations for duty optimization
-    
-    Format your response in markdown.
-    `;
-
-    // Call an AI model for analysis
-    const openAIApiKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIApiKey) {
-      throw new Error('OPENAI_API_KEY is not set');
+    if (analysisType === 'chat' && question) {
+      prompt = `
+      Regarding the customs data file named "${fileName}" (${fileType} format).
+      
+      The user asks: "${question}"
+      
+      Based on the context that this is customs import/export data, provide a helpful response.
+      Format your response in markdown.
+      `;
+    } else {
+      prompt = `
+      Analyze this customs data file named "${fileName}" (${fileType} format).
+      
+      Please provide:
+      1. General overview of the imports/exports
+      2. Top 20 goods by weight
+      3. Top 20 companies for each of these goods
+      4. Key insights and trends
+      5. Recommendations for duty optimization
+      
+      Format your response in markdown.
+      `;
     }
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Call Deepseek API instead of OpenAI
+    const deepseekApiKey = "sk-7d93695119444ec69fde7000c93bcff9";
+    
+    if (!deepseekApiKey) {
+      throw new Error('Deepseek API key is not set');
+    }
+
+    const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openAIApiKey}`,
+        'Authorization': `Bearer ${deepseekApiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4o-mini',
+        model: 'deepseek-chat',
         messages: [
-          { role: 'system', content: 'You are a customs and logistics data analyst expert. Provide detailed analysis of import/export data.' },
+          { 
+            role: 'system', 
+            content: 'You are a customs and logistics data analyst expert. Provide detailed analysis of import/export data. Focus on data insights, highlighting top goods by weight and the companies dealing with these goods.'
+          },
           { role: 'user', content: prompt }
         ],
         temperature: 0.3,
@@ -61,7 +78,8 @@ serve(async (req) => {
     const data = await response.json();
     
     if (!response.ok) {
-      throw new Error(`AI analysis failed: ${data.error?.message || 'Unknown error'}`);
+      console.error('API error details:', data);
+      throw new Error(`Deepseek API analysis failed: ${data.error?.message || JSON.stringify(data) || 'Unknown error'}`);
     }
 
     const analysisResult = data.choices[0].message.content;

@@ -3,15 +3,22 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Avatar } from '@/components/ui/avatar';
 import { useToast } from '@/hooks/use-toast';
-import { Send, Bot, User, Loader2, RefreshCw, ChevronDown, PlusCircle } from 'lucide-react';
+import { Send, Bot, User, Loader2, RefreshCw, PlusCircle, Upload, X, FileText } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import ReactMarkdown from 'react-markdown';
 
 interface Message {
   id: string;
   content: string;
   sender: 'user' | 'ai';
   timestamp: Date;
+}
+
+interface FileInfo {
+  name: string;
+  content: string;
+  type: string;
 }
 
 const AIChat = () => {
@@ -25,7 +32,9 @@ const AIChat = () => {
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<FileInfo | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -36,7 +45,90 @@ const AIChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type and size
+    const maxSizeInMB = 5;
+    const acceptedTypes = ['text/plain', 'text/csv', 'application/json', 'application/vnd.ms-excel', 
+                          'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                          'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    
+    if (!acceptedTypes.includes(file.type)) {
+      toast({
+        title: "Непідтримуваний тип файлу",
+        description: "Будь ласка, завантажте текстовий файл, CSV, Excel, JSON або документ Word.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (file.size > maxSizeInMB * 1024 * 1024) {
+      toast({
+        title: "Файл занадто великий",
+        description: `Максимальний розмір файлу: ${maxSizeInMB}MB.`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Read file content
+    try {
+      setIsLoading(true);
+      const content = await readFileContent(file);
+      
+      setUploadedFile({
+        name: file.name,
+        content,
+        type: file.type
+      });
+      
+      toast({
+        title: "Файл завантажено",
+        description: `"${file.name}" готовий до аналізу.`
+      });
+    } catch (error) {
+      console.error("Error reading file:", error);
+      toast({
+        title: "Помилка при читанні файлу",
+        description: "Не вдалося прочитати вміст файлу.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          resolve(event.target.result as string);
+        } else {
+          reject(new Error("Failed to read file"));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error("File reading error"));
+      };
+      
+      reader.readAsText(file);
+    });
+  };
+
+  const removeUploadedFile = () => {
+    setUploadedFile(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!input.trim()) return;
@@ -53,45 +145,43 @@ const AIChat = () => {
     setInput('');
     setIsLoading(true);
     
-    // Simulate AI response after delay
-    setTimeout(() => {
-      generateAIResponse(input);
-    }, 1500);
-  };
-
-  const generateAIResponse = (userInput: string) => {
-    // This is a simulated AI response. In a real implementation, we would call the DeepSeek API here
-    let aiResponse = '';
-    
-    const lowerInput = userInput.toLowerCase();
-    
-    if (lowerInput.includes('задач') || lowerInput.includes('task')) {
-      aiResponse = "Я можу допомогти вам створити завдання. Яке завдання ви хочете додати до вашого списку?";
-    } else if (lowerInput.includes('пошт') || lowerInput.includes('email') || lowerInput.includes('gmail')) {
-      aiResponse = "Я можу проаналізувати вашу електронну пошту. Бажаєте, щоб я зробив огляд ваших непрочитаних повідомлень?";
-    } else if (lowerInput.includes('файл') || lowerInput.includes('excel') || lowerInput.includes('csv')) {
-      aiResponse = "Я можу проаналізувати ваші файли даних. Будь ласка, завантажте Excel або CSV файл, і я проведу аналіз імпортної статистики.";
-    } else if (lowerInput.includes('контакт') || lowerInput.includes('client') || lowerInput.includes('клієнт')) {
-      aiResponse = "Я можу допомогти вам знайти контактні дані компаній. Яку компанію ви шукаєте?";
-    } else if (lowerInput.includes('новин') || lowerInput.includes('news')) {
-      aiResponse = "Ось останні новини про українських імпортерів та експортерів:\n\n1. ТОВ 'Укрзерноекспорт' збільшив поставки кукурудзи в ЄС на 15%\n2. Нова логістична компанія відкрила офіс у Одесі\n3. Уряд спростив процедури для імпортерів медичного обладнання\n4. Експорт IT-послуг зріс на 23% у порівнянні з минулим роком\n5. Українські виробники меду отримали нові сертифікати для експорту в Японію";
-    } else if (lowerInput.includes('гороскоп') || lowerInput.includes('horoscope')) {
-      aiResponse = "Гороскоп для Рака на сьогодні:\nСьогодні сприятливий день для бізнес-переговорів та укладання нових контрактів. Ваша інтуїція допоможе прийняти правильне рішення в складній ситуації. Ввечері приділіть час відпочинку та близьким людям.";
-    } else if (lowerInput.includes('привіт') || lowerInput.includes('hello') || lowerInput.includes('hi')) {
-      aiResponse = "Привіт! Чим я можу вам допомогти сьогодні? Можу допомогти з аналізом даних, створенням задач, пошуком контактів або іншими потребами для вашого логістичного бізнесу.";
-    } else {
-      aiResponse = "Я розумію ваш запит. Як штучний інтелект для логістики, я можу:\n\n- Аналізувати дані з Excel/CSV файлів\n- Допомагати з управлінням задачами\n- Обробляти електронну пошту\n- Шукати контакти компаній\n- Надавати аналітику та звіти\n- Генерувати документи\n\nБудь ласка, уточніть, з чим саме вам потрібна допомога.";
+    try {
+      // Get response from Deepseek API via edge function
+      const { data, error } = await supabase.functions.invoke('ai-assistant', {
+        body: {
+          message: input,
+          fileContent: uploadedFile?.content || null,
+          fileType: uploadedFile?.type || null
+        },
+      });
+      
+      if (error) throw error;
+      
+      if (!data || !data.success) {
+        throw new Error(data?.error || 'Unknown error occurred');
+      }
+      
+      const aiMessage: Message = {
+        id: Date.now().toString(),
+        content: data.response,
+        sender: 'ai',
+        timestamp: new Date(),
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+      
+      // Clear the file after it's been used (optional based on your use case)
+      // setUploadedFile(null);
+    } catch (error) {
+      console.error('Error getting AI response:', error);
+      toast({
+        title: "Помилка",
+        description: "Не вдалося отримати відповідь від AI. Спробуйте ще раз пізніше.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    const aiMessage: Message = {
-      id: Date.now().toString(),
-      content: aiResponse,
-      sender: 'ai',
-      timestamp: new Date(),
-    };
-    
-    setMessages(prev => [...prev, aiMessage]);
-    setIsLoading(false);
   };
 
   const startNewChat = () => {
@@ -109,6 +199,8 @@ const AIChat = () => {
       },
     ]);
     
+    setUploadedFile(null);
+    
     toast({
       title: "Нова розмова розпочата",
       description: "Всі попередні повідомлення було очищено.",
@@ -124,10 +216,23 @@ const AIChat = () => {
             Ваш розумний помічник для управління логістичними операціями
           </p>
         </div>
-        <Button onClick={startNewChat} variant="outline">
-          <PlusCircle className="mr-2 h-4 w-4" />
-          Нова розмова
-        </Button>
+        <div className="flex space-x-2">
+          <Button onClick={() => fileInputRef.current?.click()} variant="outline">
+            <Upload className="mr-2 h-4 w-4" />
+            Завантажити файл
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              onChange={handleFileUpload}
+              disabled={isLoading}
+            />
+          </Button>
+          <Button onClick={startNewChat} variant="outline">
+            <PlusCircle className="mr-2 h-4 w-4" />
+            Нова розмова
+          </Button>
+        </div>
       </div>
       
       <Card className="flex-1 flex flex-col overflow-hidden">
@@ -137,6 +242,25 @@ const AIChat = () => {
             DeepSeek AI Assistant
           </CardTitle>
         </CardHeader>
+        
+        {uploadedFile && (
+          <div className="bg-blue-50 p-3 border-b border-blue-100 flex items-center justify-between">
+            <div className="flex items-center text-sm">
+              <FileText className="h-4 w-4 text-blue-600 mr-2" />
+              <span className="font-medium">Завантажений файл: </span>
+              <span className="ml-2 text-gray-700">{uploadedFile.name}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={removeUploadedFile}
+              title="Видалити файл"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+        
         <CardContent className="flex-1 overflow-auto p-6">
           <div className="space-y-4">
             {messages.map((message) => (
@@ -167,7 +291,13 @@ const AIChat = () => {
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
-                    <p className="whitespace-pre-line">{message.content}</p>
+                    {message.sender === 'ai' ? (
+                      <div className="prose prose-sm max-w-none dark:prose-invert whitespace-pre-line">
+                        <ReactMarkdown>{message.content}</ReactMarkdown>
+                      </div>
+                    ) : (
+                      <p className="whitespace-pre-line">{message.content}</p>
+                    )}
                     <div
                       className={`mt-1 text-xs ${
                         message.sender === 'user' ? 'text-blue-200' : 'text-gray-500'
@@ -186,7 +316,7 @@ const AIChat = () => {
                     <RefreshCw className="h-5 w-5 text-blue-600 animate-spin" />
                   </div>
                   <div className="rounded-lg px-4 py-2 bg-gray-100 text-gray-900">
-                    <p>Thinking...</p>
+                    <p>Думаю...</p>
                   </div>
                 </div>
               </div>

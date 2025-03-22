@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -50,7 +49,7 @@ const AIChat = () => {
     if (!file) return;
 
     // Check file type and size
-    const maxSizeInMB = 5;
+    const maxSizeInMB = 500; // Updated from 5MB to 500MB
     const acceptedTypes = ['text/plain', 'text/csv', 'application/json', 'application/vnd.ms-excel', 
                           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                           'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];

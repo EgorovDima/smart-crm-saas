@@ -24,7 +24,19 @@ serve(async (req) => {
     if (fileContent && fileType) {
       // If file is provided, add context about the file
       systemPrompt = 'You are an AI assistant for logistics specializing in data analysis. Analyze the provided file and answer questions about it.';
-      userPrompt = `The user uploaded a ${fileType} file with the following content:\n\n${fileContent}\n\nThe user asks: ${message}\n\nProvide a thorough analysis based on the file content.`;
+      
+      // For large files, we might need to truncate or summarize the content
+      // to fit within the token limits of the AI model
+      let processedContent = fileContent;
+      
+      // Simple truncation if content is very large (over 100,000 characters)
+      // This is a basic approach - more sophisticated approaches could be implemented
+      if (fileContent.length > 100000) {
+        processedContent = fileContent.substring(0, 100000) + 
+          "\n\n[File content truncated due to size limitations. This is the first 100,000 characters.]";
+      }
+      
+      userPrompt = `The user uploaded a ${fileType} file with the following content:\n\n${processedContent}\n\nThe user asks: ${message}\n\nProvide a thorough analysis based on the file content.`;
     }
 
     // Call Deepseek API

@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Send } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import ReactMarkdown from 'react-markdown';
 
 interface ChatMessage {
   id: string;
@@ -95,12 +96,12 @@ const AnalysisChat: React.FC<AnalysisChatProps> = ({ fileName, fileType }) => {
                   : 'bg-muted'
               }`}
             >
-              <div className="prose prose-sm max-w-none">
-                {message.content.split('\n').map((line, i) => (
-                  <p key={i} className="mb-1 last:mb-0">
-                    {line}
-                  </p>
-                ))}
+              <div className="prose prose-sm max-w-none dark:prose-invert">
+                {message.sender === 'ai' ? (
+                  <ReactMarkdown>{message.content}</ReactMarkdown>
+                ) : (
+                  <p>{message.content}</p>
+                )}
               </div>
               <div className="text-xs opacity-70 mt-1">
                 {message.timestamp.toLocaleTimeString()}

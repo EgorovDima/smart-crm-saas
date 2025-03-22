@@ -6,7 +6,9 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { UploadCloud, FileSpreadsheet, Search, BarChart3, PieChart, FileSearch } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Search, BarChart3, PieChart, FileSearch, MessageSquare } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import AnalysisChat from '@/components/AnalysisChat';
 import {
   Table,
   TableBody,
@@ -34,6 +36,7 @@ const Database = () => {
   const [selectedFile, setSelectedFile] = useState<FileData | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'analysis' | 'chat'>('analysis');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
@@ -76,43 +79,45 @@ const Database = () => {
     }
   };
 
-  const handleAnalyze = (file: FileData) => {
+  const handleAnalyze = async (file: FileData) => {
     setSelectedFile(file);
     setIsAnalyzing(true);
+    setActiveTab('analysis');
     
-    // Simulate analysis process
     toast({
       title: "Analysis started",
       description: `Analyzing ${file.name}...`,
     });
-    
-    // Simulate AI analysis completion after 3 seconds
-    setTimeout(() => {
-      setIsAnalyzing(false);
-      setAnalysisResult(`
-        ## Import Data Analysis for ${file.name}
 
-        ### Key Findings:
-        - Total import value: $24.5M (↑12% YoY)
-        - Top source country: Germany (32%)
-        - Fastest growing category: Electronic components (↑28%)
-        - Highest duty rates: Luxury goods (18.5%)
-        
-        ### Recommendations:
-        - Explore suppliers in Poland for 15% lower logistics costs
-        - Consolidate shipments from Germany and France
-        - Consider applying for duty relief program for electronics
-        
-        ### Contact Opportunities:
-        - Found 3 potential new carriers for European routes
-        - Identified customs broker with specialized electronics experience
-      `);
+    try {
+      // Call the edge function to analyze the file
+      const { data, error } = await supabase.functions.invoke('analyze-file', {
+        body: {
+          fileName: file.name,
+          fileType: file.type,
+          analysisType: 'comprehensive'
+        },
+      });
+      
+      if (error) throw error;
+      
+      setAnalysisResult(data.analysis);
       
       toast({
         title: "Analysis complete",
         description: "The AI has completed analyzing your data.",
       });
-    }, 3000);
+    } catch (error) {
+      console.error('Analysis failed:', error);
+      toast({
+        title: "Analysis failed",
+        description: "There was an error analyzing your file. Please try again.",
+        variant: "destructive",
+      });
+      setAnalysisResult("Analysis failed. Please try again or contact support if the issue persists.");
+    } finally {
+      setIsAnalyzing(false);
+    }
   };
 
   const filteredFiles = files.filter(file => 
@@ -211,9 +216,19 @@ const Database = () => {
         <div className="lg:col-span-1">
           <Card className="h-full">
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <BarChart3 className="h-5 w-5" />
-                <span>AI Analysis</span>
+              <CardTitle className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <BarChart3 className="h-5 w-5" />
+                  <span>AI Analysis</span>
+                </div>
+                {selectedFile && (
+                  <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'analysis' | 'chat')}>
+                    <TabsList className="grid w-full grid-cols-2">
+                      <TabsTrigger value="analysis">Analysis</TabsTrigger>
+                      <TabsTrigger value="chat">Chat</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                )}
               </CardTitle>
               <CardDescription>
                 {selectedFile 
@@ -221,7 +236,7 @@ const Database = () => {
                   : "Select a file to analyze"}
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="flex-1 overflow-hidden">
               {!selectedFile && (
                 <div className="text-center py-12 text-muted-foreground">
                   <PieChart className="mx-auto h-12 w-12 mb-4 opacity-30" />
@@ -236,11 +251,12 @@ const Database = () => {
                 </div>
               )}
               
-              {!isAnalyzing && selectedFile && analysisResult && (
-                <div className="prose prose-sm max-w-full">
-                  <pre className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md text-sm">
-                    {analysisResult}
-                  </pre>
+              {!isAnalyzing && selectedFile && activeTab === 'analysis' && analysisResult && (
+                <div className="prose prose-sm max-w-full h-[calc(100vh-20rem)] overflow-y-auto">
+                  <div 
+                    className="whitespace-pre-wrap bg-gray-50 p-4 rounded-md text-sm"
+                    dangerouslySetInnerHTML={{ __html: analysisResult.replace(/\n/g, '<br/>') }}
+                  />
                   <div className="mt-6 flex space-x-2 justify-end">
                     <Button variant="outline" size="sm">Download Report</Button>
                     <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
@@ -248,6 +264,15 @@ const Database = () => {
                       Deep Analysis
                     </Button>
                   </div>
+                </div>
+              )}
+              
+              {!isAnalyzing && selectedFile && activeTab === 'chat' && (
+                <div className="h-[calc(100vh-20rem)]">
+                  <AnalysisChat 
+                    fileName={selectedFile.name}
+                    fileType={selectedFile.type}
+                  />
                 </div>
               )}
             </CardContent>

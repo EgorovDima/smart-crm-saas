@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,6 +16,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 interface FileData {
   id: string;
@@ -43,7 +43,6 @@ const Database = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Load minimal file metadata from localStorage on component mount
   useEffect(() => {
     try {
       const savedFilesMetadata = localStorage.getItem('analyzed-files-metadata');
@@ -55,10 +54,8 @@ const Database = () => {
     }
   }, []);
 
-  // Save only file metadata to localStorage whenever they change
   useEffect(() => {
     try {
-      // Store only metadata without file content to avoid quota issues
       const filesMetadata = files.map(file => ({
         id: file.id,
         name: file.name,
@@ -79,23 +76,20 @@ const Database = () => {
 
   const storeFileContent = (fileId: string, content: string): boolean => {
     try {
-      // Check if content is too large for localStorage
       if (content.length > MAX_STORAGE_ITEM_SIZE) {
-        // Store truncated version for reference
         const truncatedContent = content.substring(0, MAX_STORAGE_ITEM_SIZE / 2) + 
           "\n\n[Content truncated for storage limitations. Using first and last portions for reference.]\n\n" +
           content.substring(content.length - MAX_STORAGE_ITEM_SIZE / 2);
         
         localStorage.setItem(`file-content-${fileId}`, truncatedContent);
         console.log(`File ${fileId} content was truncated for storage (${content.length} bytes → ${truncatedContent.length} bytes)`);
-        return false; // Content was truncated
+        return false;
       } else {
         localStorage.setItem(`file-content-${fileId}`, content);
-        return true; // Content stored completely
+        return true;
       }
     } catch (e) {
       console.error(`Error storing content for file ${fileId}:`, e);
-      // If we can't store at all, store nothing and return an error
       return false;
     }
   };
@@ -126,7 +120,6 @@ const Database = () => {
     }
 
     try {
-      // Read the file content
       const fileContent = await readFileContent(file);
       
       const fileType = file.name.endsWith('.csv') ? 'csv' : 'excel';
@@ -142,17 +135,15 @@ const Database = () => {
         type: fileType,
       };
       
-      // Store the file content separately
       const storedCompletely = storeFileContent(newFileId, fileContent);
       
-      // Save the new file metadata
       setFiles(prevFiles => [...prevFiles, newFile]);
       
       if (!storedCompletely) {
         toast({
           title: "File content truncated",
           description: "The file was too large to store completely. Analysis may be based on partial content.",
-          variant: "warning",
+          variant: "default",
         });
       } else {
         toast({
@@ -161,7 +152,6 @@ const Database = () => {
         });
       }
       
-      // Automatically analyze the newly uploaded file
       handleAnalyze(newFile);
     } catch (error) {
       console.error('Error reading file:', error);
@@ -210,14 +200,12 @@ const Database = () => {
     try {
       console.log(`Analyzing file: ${file.name}, type: ${file.type}, size: ${file.size}`);
       
-      // Get the file content from storage or generate dummy content
       const fileContent = getFileContent(file.id) || generateDummyContent(file);
       
       if (!fileContent) {
         throw new Error("Could not retrieve file content for analysis");
       }
       
-      // Call the edge function to analyze the file with actual content
       const { data, error } = await supabase.functions.invoke('analyze-file', {
         body: {
           fileName: file.name,
@@ -252,7 +240,6 @@ const Database = () => {
     }
   };
 
-  // Generate dummy content for demo files
   const generateDummyContent = (file: FileData): string => {
     if (file.type === 'csv') {
       return `Date,Product,Country,Quantity,Value,Customs Duty
@@ -262,7 +249,6 @@ const Database = () => {
 2023-02-28,Food Products,Italy,1500,28000,1400
 2023-03-15,Chemicals,USA,620,55000,2750`;
     } else {
-      // For Excel files, return a representation of what might be in an Excel file
       return `Sheet: Import Data
 Columns: Date, Product, Country, Quantity, Value, Customs Duty
 Row 1: 2023-01-15, Electronics, China, 1200, 45000, 2250
@@ -296,7 +282,6 @@ Row 3: 2023-02-10, Machinery, Germany, 340, 120000, 6000`;
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Files List Panel */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
@@ -363,7 +348,6 @@ Row 3: 2023-02-10, Machinery, Germany, 340, 120000, 6000`;
           </Card>
         </div>
         
-        {/* Analysis Panel */}
         <div className="lg:col-span-1">
           <Card className="h-full">
             <CardHeader>

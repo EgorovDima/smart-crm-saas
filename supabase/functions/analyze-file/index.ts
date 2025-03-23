@@ -22,11 +22,27 @@ serve(async (req) => {
       throw new Error('No file content provided for analysis');
     }
 
-    // Truncate file content if it's too large
+    // Truncate file content if it's too large for the API
     let processedContent = fileContent;
-    if (fileContent.length > 12000) {
-      processedContent = fileContent.substring(0, 12000) + 
-        "\n\n[Content truncated due to size limitations. This is the first 12,000 characters.]";
+    const maxContentLength = 8000; // Set max content length to avoid API limits
+    
+    if (fileContent.length > maxContentLength) {
+      // For large files, take sections from beginning, middle, and end
+      const startSection = fileContent.substring(0, maxContentLength * 0.4);
+      const middleStartIdx = Math.floor(fileContent.length / 2 - maxContentLength * 0.1);
+      const middleSection = fileContent.substring(
+        middleStartIdx, 
+        middleStartIdx + Math.floor(maxContentLength * 0.2)
+      );
+      const endSection = fileContent.substring(fileContent.length - Math.floor(maxContentLength * 0.4));
+      
+      processedContent = startSection + 
+        "\n\n[...Content truncated due to size limitations...]\n\n" + 
+        middleSection +
+        "\n\n[...Content truncated due to size limitations...]\n\n" +
+        endSection;
+        
+      console.log(`File content truncated from ${fileContent.length} to ${processedContent.length} characters`);
     }
 
     // Configure the prompt based on whether this is a general analysis or a specific question

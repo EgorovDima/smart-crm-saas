@@ -24,8 +24,10 @@ interface FileData {
   size: string;
   uploadDate: string;
   type: string;
-  content?: string; // Added content field to store file data
+  content?: string; // We'll store a reference or truncated content instead of full file
 }
+
+const MAX_STORAGE_ITEM_SIZE = 1024 * 1024; // Limit to 1MB per file in localStorage
 
 const Database = () => {
   const [files, setFiles] = useState<FileData[]>([
@@ -41,22 +43,71 @@ const Database = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // Load files from localStorage on component mount
+  // Load minimal file metadata from localStorage on component mount
   useEffect(() => {
-    const savedFiles = localStorage.getItem('analyzed-files');
-    if (savedFiles) {
-      try {
-        setFiles(JSON.parse(savedFiles));
-      } catch (e) {
-        console.error('Error loading saved files:', e);
+    try {
+      const savedFilesMetadata = localStorage.getItem('analyzed-files-metadata');
+      if (savedFilesMetadata) {
+        setFiles(JSON.parse(savedFilesMetadata));
       }
+    } catch (e) {
+      console.error('Error loading saved files metadata:', e);
     }
   }, []);
 
-  // Save files to localStorage whenever they change
+  // Save only file metadata to localStorage whenever they change
   useEffect(() => {
-    localStorage.setItem('analyzed-files', JSON.stringify(files));
-  }, [files]);
+    try {
+      // Store only metadata without file content to avoid quota issues
+      const filesMetadata = files.map(file => ({
+        id: file.id,
+        name: file.name,
+        size: file.size,
+        uploadDate: file.uploadDate,
+        type: file.type
+      }));
+      localStorage.setItem('analyzed-files-metadata', JSON.stringify(filesMetadata));
+    } catch (e) {
+      console.error('Error saving files metadata to localStorage:', e);
+      toast({
+        title: "Storage Error",
+        description: "Failed to save file metadata due to limited browser storage.",
+        variant: "destructive",
+      });
+    }
+  }, [files, toast]);
+
+  const storeFileContent = (fileId: string, content: string): boolean => {
+    try {
+      // Check if content is too large for localStorage
+      if (content.length > MAX_STORAGE_ITEM_SIZE) {
+        // Store truncated version for reference
+        const truncatedContent = content.substring(0, MAX_STORAGE_ITEM_SIZE / 2) + 
+          "\n\n[Content truncated for storage limitations. Using first and last portions for reference.]\n\n" +
+          content.substring(content.length - MAX_STORAGE_ITEM_SIZE / 2);
+        
+        localStorage.setItem(`file-content-${fileId}`, truncatedContent);
+        console.log(`File ${fileId} content was truncated for storage (${content.length} bytes → ${truncatedContent.length} bytes)`);
+        return false; // Content was truncated
+      } else {
+        localStorage.setItem(`file-content-${fileId}`, content);
+        return true; // Content stored completely
+      }
+    } catch (e) {
+      console.error(`Error storing content for file ${fileId}:`, e);
+      // If we can't store at all, store nothing and return an error
+      return false;
+    }
+  };
+
+  const getFileContent = (fileId: string): string | null => {
+    try {
+      return localStorage.getItem(`file-content-${fileId}`);
+    } catch (e) {
+      console.error(`Error retrieving content for file ${fileId}:`, e);
+      return null;
+    }
+  };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
@@ -82,22 +133,33 @@ const Database = () => {
       const fileSize = (file.size / (1024 * 1024)).toFixed(2) + " MB";
       const today = new Date().toISOString().split('T')[0];
       
+      const newFileId = Date.now().toString();
       const newFile = {
-        id: Date.now().toString(),
+        id: newFileId,
         name: file.name,
         size: fileSize,
         uploadDate: today,
         type: fileType,
-        content: fileContent
       };
       
-      // Save the new file
+      // Store the file content separately
+      const storedCompletely = storeFileContent(newFileId, fileContent);
+      
+      // Save the new file metadata
       setFiles(prevFiles => [...prevFiles, newFile]);
       
-      toast({
-        title: "File uploaded",
-        description: `${file.name} has been successfully uploaded.`,
-      });
+      if (!storedCompletely) {
+        toast({
+          title: "File content truncated",
+          description: "The file was too large to store completely. Analysis may be based on partial content.",
+          variant: "warning",
+        });
+      } else {
+        toast({
+          title: "File uploaded",
+          description: `${file.name} has been successfully uploaded.`,
+        });
+      }
       
       // Automatically analyze the newly uploaded file
       handleAnalyze(newFile);
@@ -148,8 +210,12 @@ const Database = () => {
     try {
       console.log(`Analyzing file: ${file.name}, type: ${file.type}, size: ${file.size}`);
       
-      // Get the file content - either from the file object or from a dummy content for demo files
-      const fileContent = file.content || generateDummyContent(file);
+      // Get the file content from storage or generate dummy content
+      const fileContent = getFileContent(file.id) || generateDummyContent(file);
+      
+      if (!fileContent) {
+        throw new Error("Could not retrieve file content for analysis");
+      }
       
       // Call the edge function to analyze the file with actual content
       const { data, error } = await supabase.functions.invoke('analyze-file', {
@@ -357,7 +423,7 @@ Row 3: 2023-02-10, Machinery, Germany, 340, 120000, 6000`;
                   <AnalysisChat 
                     fileName={selectedFile.name}
                     fileType={selectedFile.type}
-                    fileContent={selectedFile.content || generateDummyContent(selectedFile)}
+                    fileContent={getFileContent(selectedFile.id) || generateDummyContent(selectedFile)}
                   />
                 </div>
               )}

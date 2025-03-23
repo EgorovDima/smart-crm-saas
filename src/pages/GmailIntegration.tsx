@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,8 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // Google OAuth Configuration with your provided credentials
 const GOOGLE_CLIENT_ID = '307019110275-jnlvunpcfe1fnjjb9133ggmu93eoj3vb.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
-// Fix: Make sure the redirect URI exactly matches what's configured in Google Cloud Console
-// Using /gmail instead of anything else
+// Make sure the redirect URI exactly matches what's configured in Google Cloud Console
 const GOOGLE_REDIRECT_URI = `${window.location.origin}/gmail`;
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels';
 
@@ -169,7 +167,7 @@ const GmailIntegration = () => {
     
     console.log("Starting Gmail OAuth flow");
     
-    // Construct the OAuth URL with extra parameters to ensure correct login
+    // Construct the OAuth URL with proper parameters
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
       `client_id=${GOOGLE_CLIENT_ID}` +
       `&redirect_uri=${encodeURIComponent(GOOGLE_REDIRECT_URI)}` +
@@ -177,8 +175,7 @@ const GmailIntegration = () => {
       `&scope=${encodeURIComponent(GMAIL_SCOPES)}` +
       `&access_type=offline` +
       `&prompt=consent` +
-      `&include_granted_scopes=true` +
-      `&login_hint=${encodeURIComponent('logisticstoukraine@gmail.com')}`;
+      `&include_granted_scopes=true`;
     
     console.log("Auth URL:", authUrl);
     

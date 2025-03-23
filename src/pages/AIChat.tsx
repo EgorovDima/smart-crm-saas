@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 import { 
   Send, Bot, User, Loader2, RefreshCw, PlusCircle, 
   Upload, X, FileText, Calendar, Mail, BarChart, 
-  Globe, FileInvoice, Newspaper, User as UserIcon, 
+  Globe, FileSpreadsheet, Newspaper, User as UserIcon, 
   TrendingUp, Save, Download
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -86,7 +86,7 @@ const functionInfo = {
   },
   [AssistantFunction.DOCUMENT_GENERATION]: {
     name: 'Створення документів',
-    icon: <FileInvoice className="h-4 w-4" />,
+    icon: <FileSpreadsheet className="h-4 w-4" />,
     description: 'Створення рахунків та документів транспортних витрат'
   },
   [AssistantFunction.NEWS_AGGREGATION]: {

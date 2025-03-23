@@ -17,9 +17,10 @@ interface ChatMessage {
 interface AnalysisChatProps {
   fileName: string;
   fileType: string;
+  fileContent?: string;
 }
 
-const AnalysisChat: React.FC<AnalysisChatProps> = ({ fileName, fileType }) => {
+const AnalysisChat: React.FC<AnalysisChatProps> = ({ fileName, fileType, fileContent }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '0',
@@ -49,17 +50,23 @@ const AnalysisChat: React.FC<AnalysisChatProps> = ({ fileName, fileType }) => {
     setIsLoading(true);
     
     try {
-      // Send the question to the AI
+      console.log(`Sending question about file: ${fileName} with content length: ${fileContent?.length || 'not provided'}`);
+      
+      // Send the question to the AI along with file content
       const { data, error } = await supabase.functions.invoke('analyze-file', {
         body: {
           fileName,
           fileType,
+          fileContent,
           analysisType: 'chat',
           question: inputMessage,
         },
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error from edge function:', error);
+        throw error;
+      }
       
       const aiMessage: ChatMessage = {
         id: Date.now().toString(),

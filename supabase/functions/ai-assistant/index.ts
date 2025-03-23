@@ -20,6 +20,40 @@ enum AssistantFunction {
   DECISION_SUPPORT = 'decision_support',
 }
 
+interface Task {
+  title: string;
+  description: string;
+  dueDate?: string;
+  priority: 'low' | 'medium' | 'high';
+  status: 'todo' | 'in_progress' | 'done';
+}
+
+interface Client {
+  name: string;
+  email?: string;
+  phone?: string;
+  country?: string;
+  address?: string;
+  notes?: string;
+}
+
+interface Carrier {
+  name: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  serviceType?: string;
+  notes?: string;
+}
+
+interface Invoice {
+  clientName: string;
+  items: { description: string; quantity: number; price: number }[];
+  totalAmount: number;
+  date: string;
+  dueDate: string;
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -50,39 +84,123 @@ serve(async (req) => {
     // Configure the appropriate system prompt based on function type
     switch (functionType) {
       case AssistantFunction.TASK_MANAGEMENT:
-        systemPrompt = 'You are a task management AI assistant. Help the user create, organize, and prioritize tasks from their input. Suggest task due dates and categories when appropriate. Always respond in Ukrainian unless the user writes in another language.';
+        systemPrompt = `You are a task management AI assistant for logistics professionals. 
+        You can create actual tasks in the system.
+        
+        When a user asks you to create a task, you should:
+        1. Extract the task details from the user message
+        2. Format the response as a JSON object within your response text like this:
+        
+        \`\`\`json
+        {
+          "action": "createTask",
+          "task": {
+            "title": "Task title",
+            "description": "Task description",
+            "dueDate": "YYYY-MM-DD",
+            "priority": "high|medium|low",
+            "status": "todo"
+          }
+        }
+        \`\`\`
+        
+        The frontend will parse this JSON and create the task in the system.
+        
+        Always respond in Ukrainian unless the user writes in another language.`;
         break;
         
-      case AssistantFunction.EMAIL_ANALYSIS:
-        systemPrompt = 'You are an email analysis AI assistant. Summarize email content, identify priorities, action items, and important contacts. Always respond in Ukrainian unless the user writes in another language.';
+      case AssistantFunction.CLIENT_MANAGEMENT:
+        systemPrompt = `You are a client management AI assistant for logistics professionals.
+        You can create actual client records in the system.
+        
+        When a user asks you to create a client, you should:
+        1. Extract the client details from the user message
+        2. Format the response as a JSON object within your response text like this:
+        
+        \`\`\`json
+        {
+          "action": "createClient",
+          "client": {
+            "name": "Client name",
+            "email": "client@example.com",
+            "phone": "+380123456789",
+            "country": "Ukraine",
+            "address": "Client address",
+            "notes": "Additional notes"
+          }
+        }
+        \`\`\`
+        
+        The frontend will parse this JSON and create the client in the system.
+        
+        Always respond in Ukrainian unless the user writes in another language.`;
+        break;
+        
+      case AssistantFunction.CARRIER_MANAGEMENT:
+        systemPrompt = `You are a carrier management AI assistant for logistics professionals.
+        You can create actual carrier records in the system.
+        
+        When a user asks you to create a carrier, you should:
+        1. Extract the carrier details from the user message
+        2. Format the response as a JSON object within your response text like this:
+        
+        \`\`\`json
+        {
+          "action": "createCarrier",
+          "carrier": {
+            "name": "Carrier name",
+            "contactPerson": "Contact person name",
+            "email": "contact@carrier.com",
+            "phone": "+380123456789",
+            "serviceType": "Road|Air|Sea|Rail",
+            "notes": "Additional notes"
+          }
+        }
+        \`\`\`
+        
+        The frontend will parse this JSON and create the carrier in the system.
+        
+        Always respond in Ukrainian unless the user writes in another language.`;
+        break;
+        
+      case AssistantFunction.INVOICE_CREATION:
+        systemPrompt = `You are an invoice creation AI assistant for logistics professionals.
+        You can create actual invoice drafts in the system.
+        
+        When a user asks you to create an invoice, you should:
+        1. Extract the invoice details from the user message
+        2. Format the response as a JSON object within your response text like this:
+        
+        \`\`\`json
+        {
+          "action": "createInvoice",
+          "invoice": {
+            "clientName": "Client name",
+            "items": [
+              {
+                "description": "Item description",
+                "quantity": 1,
+                "price": 100
+              }
+            ],
+            "totalAmount": 100,
+            "date": "YYYY-MM-DD",
+            "dueDate": "YYYY-MM-DD"
+          }
+        }
+        \`\`\`
+        
+        The frontend will parse this JSON and create the invoice in the system.
+        
+        Always respond in Ukrainian unless the user writes in another language.`;
         break;
         
       case AssistantFunction.DATA_PROCESSING:
         systemPrompt = 'You are a data analysis AI assistant specializing in import/export statistics. Analyze the provided file data and extract meaningful insights, trends, and anomalies. Always respond in Ukrainian unless the user writes in another language.';
         break;
         
-      case AssistantFunction.WEB_RESEARCH:
-        systemPrompt = 'You are a web research AI assistant. Based on the provided information, suggest companies or individuals the user should contact. Always respond in Ukrainian unless the user writes in another language.';
-        break;
-        
-      case AssistantFunction.DOCUMENT_GENERATION:
-        systemPrompt = 'You are a document generation AI assistant. Help create standardized invoices and transportation expense documents based on the information provided. Always respond in Ukrainian unless the user writes in another language.';
-        break;
-        
-      case AssistantFunction.NEWS_AGGREGATION:
-        systemPrompt = 'You are a news aggregation AI assistant. Provide daily updated news about Ukrainian importers/exporters that would be relevant to logistics professionals. Always respond in Ukrainian unless the user writes in another language.';
-        break;
-        
-      case AssistantFunction.PERSONAL_INFO:
-        systemPrompt = 'You are a personal information AI assistant. Provide horoscope information for Cancer (male, DOB: 26.06.1983) from orakul.com. Always respond in Ukrainian unless the user writes in another language.';
-        break;
-        
-      case AssistantFunction.DECISION_SUPPORT:
-        systemPrompt = 'You are a decision support AI assistant. Analyze trends, suggest opportunities, and identify risks in the logistics and import/export sector. Always respond in Ukrainian unless the user writes in another language.';
-        break;
-        
       default:
-        systemPrompt = 'You are an AI assistant for logistics. Provide helpful, concise responses in Ukrainian (or the language the user is writing in).';
+        systemPrompt = 'You are an AI assistant for logistics. Help the user with their request. If they ask you to create tasks, clients, carriers, or invoices, tell them to switch to the appropriate assistant function for that purpose. Always respond in Ukrainian unless the user writes in another language.';
     }
     
     // Default user prompt - will be overridden if file content is present
@@ -96,9 +214,9 @@ serve(async (req) => {
       let processedContent = fileContent;
       
       // Simple truncation if content is very large (over 100,000 characters)
-      if (fileContent.length > 100000) {
-        processedContent = fileContent.substring(0, 100000) + 
-          "\n\n[File content truncated due to size limitations. This is the first 100,000 characters.]";
+      if (fileContent.length > 10000) {
+        processedContent = fileContent.substring(0, 10000) + 
+          "\n\n[File content truncated due to size limitations. This is the first 10,000 characters.]";
       }
       
       userPrompt = `The user uploaded a ${fileType} file with the following content:\n\n${processedContent}\n\nThe user asks: ${message}\n\nProvide a thorough analysis based on the file content.`;
@@ -122,6 +240,7 @@ serve(async (req) => {
       messages.push({ role: 'user', content: userPrompt });
     }
 
+    console.log('Sending request to Deepseek API');
     const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -143,11 +262,27 @@ serve(async (req) => {
     }
 
     const aiResponse = data.choices[0].message.content;
+    console.log('Received response from Deepseek API');
+
+    // Look for JSON commands in the response to determine if we need to create something
+    // Pattern matching for JSON in markdown code blocks
+    const jsonMatch = aiResponse.match(/```json\s*({[\s\S]*?})\s*```/);
+    let actionData = null;
+    
+    if (jsonMatch && jsonMatch[1]) {
+      try {
+        actionData = JSON.parse(jsonMatch[1]);
+        console.log('Found action in AI response:', actionData.action);
+      } catch (e) {
+        console.error('Error parsing JSON from AI response:', e);
+      }
+    }
 
     return new Response(JSON.stringify({ 
       success: true, 
       response: aiResponse,
-      functionType 
+      functionType,
+      actionData
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });

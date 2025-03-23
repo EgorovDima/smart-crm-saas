@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,6 +24,7 @@ interface FileData {
   size: string;
   uploadDate: string;
   type: string;
+  content?: string; // Added content field to store file data
 }
 
 const Database = () => {
@@ -40,7 +41,24 @@ const Database = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Load files from localStorage on component mount
+  useEffect(() => {
+    const savedFiles = localStorage.getItem('analyzed-files');
+    if (savedFiles) {
+      try {
+        setFiles(JSON.parse(savedFiles));
+      } catch (e) {
+        console.error('Error loading saved files:', e);
+      }
+    }
+  }, []);
+
+  // Save files to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('analyzed-files', JSON.stringify(files));
+  }, [files]);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const fileList = e.target.files;
     if (!fileList?.length) return;
     
@@ -56,27 +74,65 @@ const Database = () => {
       return;
     }
 
-    const fileType = file.name.endsWith('.csv') ? 'csv' : 'excel';
-    const fileSize = (file.size / (1024 * 1024)).toFixed(2) + " MB";
-    const today = new Date().toISOString().split('T')[0];
-    
-    const newFile = {
-      id: Date.now().toString(),
-      name: file.name,
-      size: fileSize,
-      uploadDate: today,
-      type: fileType
-    };
-    
-    setFiles([...files, newFile]);
-    toast({
-      title: "File uploaded",
-      description: `${file.name} has been successfully uploaded.`,
-    });
+    try {
+      // Read the file content
+      const fileContent = await readFileContent(file);
+      
+      const fileType = file.name.endsWith('.csv') ? 'csv' : 'excel';
+      const fileSize = (file.size / (1024 * 1024)).toFixed(2) + " MB";
+      const today = new Date().toISOString().split('T')[0];
+      
+      const newFile = {
+        id: Date.now().toString(),
+        name: file.name,
+        size: fileSize,
+        uploadDate: today,
+        type: fileType,
+        content: fileContent
+      };
+      
+      // Save the new file
+      setFiles(prevFiles => [...prevFiles, newFile]);
+      
+      toast({
+        title: "File uploaded",
+        description: `${file.name} has been successfully uploaded.`,
+      });
+      
+      // Automatically analyze the newly uploaded file
+      handleAnalyze(newFile);
+    } catch (error) {
+      console.error('Error reading file:', error);
+      toast({
+        title: "Error reading file",
+        description: "Failed to read the file content",
+        variant: "destructive",
+      });
+    }
     
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          resolve(event.target.result as string);
+        } else {
+          reject(new Error("Failed to read file"));
+        }
+      };
+      
+      reader.onerror = () => {
+        reject(new Error("File reading error"));
+      };
+      
+      reader.readAsText(file);
+    });
   };
 
   const handleAnalyze = async (file: FileData) => {
@@ -90,17 +146,27 @@ const Database = () => {
     });
 
     try {
-      // Call the edge function to analyze the file
+      console.log(`Analyzing file: ${file.name}, type: ${file.type}, size: ${file.size}`);
+      
+      // Get the file content - either from the file object or from a dummy content for demo files
+      const fileContent = file.content || generateDummyContent(file);
+      
+      // Call the edge function to analyze the file with actual content
       const { data, error } = await supabase.functions.invoke('analyze-file', {
         body: {
           fileName: file.name,
           fileType: file.type,
+          fileContent: fileContent,
           analysisType: 'comprehensive'
         },
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Analysis error from edge function:', error);
+        throw error;
+      }
       
+      console.log('Analysis completed successfully:', data);
       setAnalysisResult(data.analysis);
       
       toast({
@@ -117,6 +183,25 @@ const Database = () => {
       setAnalysisResult("Analysis failed. Please try again or contact support if the issue persists.");
     } finally {
       setIsAnalyzing(false);
+    }
+  };
+
+  // Generate dummy content for demo files
+  const generateDummyContent = (file: FileData): string => {
+    if (file.type === 'csv') {
+      return `Date,Product,Country,Quantity,Value,Customs Duty
+2023-01-15,Electronics,China,1200,45000,2250
+2023-01-22,Textiles,Turkey,850,22000,1100
+2023-02-10,Machinery,Germany,340,120000,6000
+2023-02-28,Food Products,Italy,1500,28000,1400
+2023-03-15,Chemicals,USA,620,55000,2750`;
+    } else {
+      // For Excel files, return a representation of what might be in an Excel file
+      return `Sheet: Import Data
+Columns: Date, Product, Country, Quantity, Value, Customs Duty
+Row 1: 2023-01-15, Electronics, China, 1200, 45000, 2250
+Row 2: 2023-01-22, Textiles, Turkey, 850, 22000, 1100
+Row 3: 2023-02-10, Machinery, Germany, 340, 120000, 6000`;
     }
   };
 
@@ -272,6 +357,7 @@ const Database = () => {
                   <AnalysisChat 
                     fileName={selectedFile.name}
                     fileType={selectedFile.type}
+                    fileContent={selectedFile.content || generateDummyContent(selectedFile)}
                   />
                 </div>
               )}

@@ -28,6 +28,7 @@ interface Message {
   sender: 'user' | 'ai';
   timestamp: Date;
   functionType?: string;
+  actionData?: any;
 }
 
 interface FileInfo {
@@ -55,6 +56,9 @@ enum AssistantFunction {
   NEWS_AGGREGATION = 'news_aggregation',
   PERSONAL_INFO = 'personal_info',
   DECISION_SUPPORT = 'decision_support',
+  CLIENT_MANAGEMENT = 'client_management',
+  CARRIER_MANAGEMENT = 'carrier_management',
+  INVOICE_CREATION = 'invoice_creation',
 }
 
 // Function display information
@@ -103,6 +107,21 @@ const functionInfo = {
     name: 'Підтримка прийняття рішень',
     icon: <TrendingUp className="h-4 w-4" />,
     description: 'Аналіз тенденцій, пропозиція можливостей, виявлення ризиків'
+  },
+  [AssistantFunction.CLIENT_MANAGEMENT]: {
+    name: 'Управління клієнтами',
+    icon: <UserIcon className="h-4 w-4" />,
+    description: 'Створення та управління клієнтами'
+  },
+  [AssistantFunction.CARRIER_MANAGEMENT]: {
+    name: 'Управління перевізниками',
+    icon: <Globe className="h-4 w-4" />,
+    description: 'Створення та управління перевізниками'
+  },
+  [AssistantFunction.INVOICE_CREATION]: {
+    name: 'Створення рахунків',
+    icon: <FileSpreadsheet className="h-4 w-4" />,
+    description: 'Створення та управління рахунками'
   }
 };
 
@@ -146,6 +165,47 @@ const AIChat = () => {
   
   const [showConversationsList, setShowConversationsList] = useState(false);
   const [activeFunctionType, setActiveFunctionType] = useState<AssistantFunction>(AssistantFunction.GENERAL_CHAT);
+
+  // Task storage
+  const [tasks, setTasks] = useState<any[]>(() => {
+    const savedTasks = localStorage.getItem('ai-created-tasks');
+    return savedTasks ? JSON.parse(savedTasks) : [];
+  });
+
+  // Client storage
+  const [clients, setClients] = useState<any[]>(() => {
+    const savedClients = localStorage.getItem('ai-created-clients');
+    return savedClients ? JSON.parse(savedClients) : [];
+  });
+
+  // Carrier storage
+  const [carriers, setCarriers] = useState<any[]>(() => {
+    const savedCarriers = localStorage.getItem('ai-created-carriers');
+    return savedCarriers ? JSON.parse(savedCarriers) : [];
+  });
+
+  // Invoice storage
+  const [invoices, setInvoices] = useState<any[]>(() => {
+    const savedInvoices = localStorage.getItem('ai-created-invoices');
+    return savedInvoices ? JSON.parse(savedInvoices) : [];
+  });
+
+  // Save data to localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('ai-created-tasks', JSON.stringify(tasks));
+  }, [tasks]);
+
+  useEffect(() => {
+    localStorage.setItem('ai-created-clients', JSON.stringify(clients));
+  }, [clients]);
+
+  useEffect(() => {
+    localStorage.setItem('ai-created-carriers', JSON.stringify(carriers));
+  }, [carriers]);
+
+  useEffect(() => {
+    localStorage.setItem('ai-created-invoices', JSON.stringify(invoices));
+  }, [invoices]);
 
   // Get current messages based on active conversation
   const currentConversation = conversations.find(c => c.id === currentConversationId);
@@ -333,6 +393,100 @@ const AIChat = () => {
     setActiveFunctionType(value as AssistantFunction);
   };
 
+  // Process AI actions
+  const processAIAction = (actionData: any) => {
+    if (!actionData || !actionData.action) return;
+    
+    try {
+      console.log('Processing AI action:', actionData.action);
+      
+      switch (actionData.action) {
+        case 'createTask':
+          if (actionData.task) {
+            // Add an ID and timestamp to the task
+            const newTask = {
+              ...actionData.task,
+              id: Date.now().toString(),
+              createdAt: new Date().toISOString(),
+            };
+            
+            setTasks(prev => [...prev, newTask]);
+            
+            toast({
+              title: "Завдання створено",
+              description: `Нове завдання "${newTask.title}" успішно створено.`,
+            });
+          }
+          break;
+          
+        case 'createClient':
+          if (actionData.client) {
+            // Add an ID and timestamp to the client
+            const newClient = {
+              ...actionData.client,
+              id: Date.now().toString(),
+              createdAt: new Date().toISOString(),
+            };
+            
+            setClients(prev => [...prev, newClient]);
+            
+            toast({
+              title: "Клієнт створений",
+              description: `Новий клієнт "${newClient.name}" успішно створений.`,
+            });
+          }
+          break;
+          
+        case 'createCarrier':
+          if (actionData.carrier) {
+            // Add an ID and timestamp to the carrier
+            const newCarrier = {
+              ...actionData.carrier,
+              id: Date.now().toString(),
+              createdAt: new Date().toISOString(),
+            };
+            
+            setCarriers(prev => [...prev, newCarrier]);
+            
+            toast({
+              title: "Перевізник створений",
+              description: `Новий перевізник "${newCarrier.name}" успішно створений.`,
+            });
+          }
+          break;
+          
+        case 'createInvoice':
+          if (actionData.invoice) {
+            // Add an ID and timestamp to the invoice
+            const newInvoice = {
+              ...actionData.invoice,
+              id: Date.now().toString(),
+              createdAt: new Date().toISOString(),
+              status: 'draft',
+            };
+            
+            setInvoices(prev => [...prev, newInvoice]);
+            
+            toast({
+              title: "Рахунок створений",
+              description: `Новий рахунок для клієнта "${newInvoice.clientName}" успішно створений.`,
+            });
+          }
+          break;
+          
+        default:
+          console.log('Unknown action:', actionData.action);
+      }
+    } catch (error) {
+      console.error('Error processing AI action:', error);
+      toast({
+        title: "Помилка",
+        description: "Не вдалося обробити дію AI. Спробуйте ще раз.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -356,6 +510,8 @@ const AIChat = () => {
       // Prepare conversation history for the API
       const conversationHistory = messages.slice(-10); // Last 10 messages for context
       
+      console.log(`Sending message to AI assistant with function type: ${activeFunctionType}`);
+      
       // Get response from Deepseek API via edge function
       const { data, error } = await supabase.functions.invoke('ai-assistant', {
         body: {
@@ -367,10 +523,20 @@ const AIChat = () => {
         },
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error('Error from edge function:', error);
+        throw error;
+      }
       
       if (!data || !data.success) {
         throw new Error(data?.error || 'Unknown error occurred');
+      }
+      
+      console.log('Received response from AI assistant:', data);
+      
+      // Process any action data from the AI
+      if (data.actionData) {
+        processAIAction(data.actionData);
       }
       
       const aiMessage: Message = {
@@ -378,7 +544,8 @@ const AIChat = () => {
         content: data.response,
         sender: 'ai',
         timestamp: new Date(),
-        functionType: data.functionType || activeFunctionType
+        functionType: data.functionType || activeFunctionType,
+        actionData: data.actionData
       };
       
       const updatedMessages = [...newMessages, aiMessage];

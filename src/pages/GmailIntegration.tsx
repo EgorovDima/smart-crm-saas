@@ -19,6 +19,8 @@ import { useAuth } from '@/contexts/AuthContext';
 // Google OAuth Configuration with your provided credentials
 const GOOGLE_CLIENT_ID = '307019110275-jnlvunpcfe1fnjjb9133ggmu93eoj3vb.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
+// Fix: Make sure the redirect URI exactly matches what's configured in Google Cloud Console
+// Using /gmail instead of anything else
 const GOOGLE_REDIRECT_URI = `${window.location.origin}/gmail`;
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels';
 
@@ -203,6 +205,7 @@ const GmailIntegration = () => {
         code: "REDACTED",
         client_id: GOOGLE_CLIENT_ID,
         redirect_uri: GOOGLE_REDIRECT_URI,
+        grant_type: 'authorization_code'
       });
       
       const response = await fetch(tokenUrl, {

@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,7 +19,7 @@ import { useAuth } from '@/contexts/AuthContext';
 // Google OAuth Configuration with your provided credentials
 const GOOGLE_CLIENT_ID = '307019110275-jnlvunpcfe1fnjjb9133ggmu93eoj3vb.apps.googleusercontent.com';
 const GOOGLE_CLIENT_SECRET = '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';
-const GOOGLE_REDIRECT_URI = window.location.origin + '/gmail';
+const GOOGLE_REDIRECT_URI = `${window.location.origin}/gmail`;
 const GMAIL_SCOPES = 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.modify https://www.googleapis.com/auth/gmail.labels';
 
 const GmailIntegration = () => {
@@ -32,11 +33,15 @@ const GmailIntegration = () => {
   
   // Clear any URL parameters on component mount to avoid issues with OAuth flow
   useEffect(() => {
+    console.log("GmailIntegration component mounted");
+    
     if (window.location.search) {
       // Keep the code parameter for processing, but clear it after
       const urlParams = new URLSearchParams(window.location.search);
       const code = urlParams.get('code');
       const error = urlParams.get('error');
+      
+      console.log("URL has search params. Code exists:", !!code, "Error exists:", !!error);
       
       if (code) {
         handleGoogleCallback(code);
@@ -224,6 +229,11 @@ const GmailIntegration = () => {
         console.log("Refresh token saved");
       } else {
         console.log("No refresh token received - user may have previously granted access");
+        // If no refresh token is received, try to use previously stored one
+        const existingRefreshToken = localStorage.getItem('gmail_refresh_token');
+        if (!existingRefreshToken) {
+          console.log("No existing refresh token found, reconnection may be required in the future");
+        }
       }
       
       // Calculate expiry time
@@ -260,7 +270,7 @@ const GmailIntegration = () => {
       console.log("Fetching emails...");
       // Get list of messages
       const messagesResponse = await fetch(
-        'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=10', 
+        'https://www.googleapis.com/gmail/v1/users/me/messages?maxResults=10&labelIds=INBOX', 
         {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -455,6 +465,23 @@ const GmailIntegration = () => {
     }
   };
 
+  const composeEmail = () => {
+    const token = localStorage.getItem('gmail_access_token');
+    if (!token) {
+      toast({
+        title: "Authentication required",
+        description: "Please connect your Gmail account first",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    toast({
+      title: "Coming Soon",
+      description: "Email composition feature is under development"
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -530,13 +557,13 @@ const GmailIntegration = () => {
               />
             </div>
             <div className="space-x-2">
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" title="Archive">
                 <Archive className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" title="Delete">
                 <Trash2 className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" title="Star">
                 <Star className="h-4 w-4" />
               </Button>
             </div>
@@ -587,7 +614,7 @@ const GmailIntegration = () => {
               )}
 
               <div className="mt-4 flex justify-end">
-                <Button>
+                <Button onClick={composeEmail}>
                   <PlusCircle className="mr-2 h-4 w-4" />
                   Compose New Email
                 </Button>
